@@ -8,12 +8,12 @@
   "license": "GPL-3.0",
   "private": false,
   "devDependencies": {
+    "assert": "^1.4.1",
+    "mocha": "^5.1.1",
     "standard": "^11.0.1"
   },
   "dependencies": {
-    "assert": "^1.4.1",
     "express": "^4.16.3",
-    "mocha": "^5.1.1",
     "node-object-hash": "^1.3.0",
     "sqlite": "^2.9.2"
   }

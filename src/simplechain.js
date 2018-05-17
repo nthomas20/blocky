@@ -2,14 +2,15 @@
 
 /**
  * Library for managing the blockchain
- * Blocks are individual ledge events written to the chain
+ * Blocks are individual ledger events written to the chain
+ * Anchors are grouped block hashes
  * @author Nathaniel Thomas <nthomas20@gmail.com>
  */
 
 const ObjectHash = require('node-object-hash')
 const sqlite = require('sqlite')
 
-// Block is a group of transactions
+// Each Block is a single transaction
 class Block {
   constructor (data, o = null) {
     if (o === null) {
