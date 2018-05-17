@@ -9,13 +9,13 @@ async function run () {
 
   await chain.add(new tc.Transaction({data: 'more data'}))
   await chain.add(new tc.Transaction('more data 1'))
-  // console.log(await chain.add(new tc.Transaction('more data 2')))
-  // console.log(await chain.add(new tc.Transaction('more data 3')))
-  // console.log(await chain.add(new tc.Transaction('more data 4')))
+  await chain.add(new tc.Transaction('more data 2'))
+  await chain.add(new tc.Transaction('more data 3'))
+  await chain.add(new tc.Transaction('more data 4'))
 
-  let rows = await chain._chain.all('SELECT * FROM block_0')
-  console.log(rows)
-  rows = await chain._chain.all('SELECT * FROM block')
+  // let rows = await chain._chain.all('SELECT * FROM block_0')
+  // console.log(rows)
+  let rows = await chain._chain.all('SELECT * FROM block')
   console.log(rows)
 
   // await chain.anchor()
@@ -24,8 +24,8 @@ async function run () {
 
   // console.log(rows)
 
-  console.log(chain.length)
-  console.log(chain.currentBlock.hash)
+  // console.log(chain.length)
+  // console.log(chain.currentBlock.hash)
 
   await chain._chain.close()
 }

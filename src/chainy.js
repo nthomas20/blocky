@@ -174,14 +174,6 @@ class Chain {
 
   async _addBlockToChain () {
     try {
-      console.log([
-        this.currentBlock.index,
-        this.currentBlock.hash,
-        this.currentBlock.previousHash,
-        this.currentBlock.nonce,
-        this.currentBlock.timestamp
-      ])
-
       await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?)', [
         this.currentBlock.index,
         this.currentBlock.hash,
@@ -192,10 +184,6 @@ class Chain {
 
       return true
     } catch (err) {
-      console.log(err)
-      console.log(this.currentBlock)
-      console.log(this.currentBlock._nonce, this.currentBlock.nonce)
-      console.log(this.currentBlock._hash, this.currentBlock.hash)
       return false
     }
   }
@@ -205,7 +193,7 @@ class Chain {
     if (await this._finalizeBlock() === true) {
       // Replace the current block with a new one
       this.currentBlock = new Block(this._chain, this.currentBlock.index + 1, this.currentBlock.hash, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)))
-      this.currentBlock.initialize()
+      await this.currentBlock.initialize()
     }
   }
 
@@ -239,7 +227,7 @@ class Chain {
     if (await this.currentBlock.add(transaction) === true) {
 
       if (this.currentBlock.length >= this.currentBlock.maxTransactions) {
-        this._finalizeBlock()
+        await this._createNewBlock()
       }
 
       return true
