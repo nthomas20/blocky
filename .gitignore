@@ -61,4 +61,4 @@ typings/
 .next
 
 # sqlite db files
-.db
+*.db
