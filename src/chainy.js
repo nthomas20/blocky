@@ -4,7 +4,6 @@
  * Library for managing the blockchain
  * Transactions are single ledger events
  * Blocks consist of multiple transactions
- * Anchors are grouped block hashes
  * @author Nathaniel Thomas <nthomas20@gmail.com>
  */
 
@@ -236,51 +235,12 @@ class Chain {
     return false
   }
 
-  async anchor () {
-    // Get latest anchor
-    let anchorRows = await this._chain.all('SELECT i, hash FROM anchor ORDER BY i DESC LIMIT 1')
-    let previousAnchor = 0
-    let previoushash = -1
-
-    if (anchorRows.length > 0) {
-      previousAnchor = anchorRows[0]['i']
-      previoushash = anchorRows[0]['hash']
-    }
-
-    // Grab hashes of all previous blocks
-    let hashRows = await this._chain.all('SELECT hash FROM block WHERE i > ? AND i <= ? ORDER BY i ASC', [
-      previousAnchor, this.currentBlock.index
-    ])
-
-    if (hashRows.length > 0) {
-      let anchorHash = new ObjectHash().hash(hashRows)
-
-      try {
-        await this._chain.run('INSERT INTO anchor VALUES (?, ?, ?)', [
-          this.currentBlock.index,
-          anchorHash,
-          previoushash
-        ])
-      } catch (err) {
-        return false
-      }
-
-      return true
-    }
-
-    return false
-  }
-
   async initialize (seed = true) {
     this._chain = await sqlite.open(`./${this.name}.db`, { Promise })
 
     // Initialize block table
     await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, nonce INTEGER, timestamp INTEGER)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_block ON block (hash)`)
-
-    // Initialize anchor table
-    await this._chain.run('CREATE TABLE IF NOT EXISTS anchor (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR)')
-    await this._chain.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_anchor ON anchor (hash)')
 
     if (seed === true) {
       await this._seedChain()
