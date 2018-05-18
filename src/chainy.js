@@ -8,6 +8,7 @@
  */
 
 const ObjectHash = require('node-object-hash')
+const crypto = require('crypto')
 const sqlite = require('sqlite')
 
 // Each Transaction is a single event
@@ -37,14 +38,14 @@ class Transaction {
 
 // Each Block is a group of transactions
 class Block {
-  constructor (_chain, index, previousHash, nonce = 0, timestamp = null) {
+  constructor (_chain, index, timestamp = null) {
     this.maxTransactions = 2
-    this.previousHash = previousHash
     this._index = index
     this._length = 0
     this._hash = null
-    this._nonce = nonce
     this._transactionHashArray = []
+    this.previousHash = null
+    this._nonce = 0
 
     if (timestamp === null) {
       this.timestamp = new Date() / 1
@@ -95,11 +96,29 @@ class Block {
     return success
   }
 
+  get array () {
+    return [
+      this.index,
+      this.hash,
+      this.previousHash,
+      this.length,
+      this.nonce,
+      this.timestamp
+    ]
+  }
+
+  async build (previousHash, nonce, powHashPrefix = null) {
+    this.previousHash = previousHash
+    this.nonce = nonce
+
+    await this._proofOfWork(powHashPrefix)
+  }
+
   async initialize () {
     await this.delete()
 
     await this._chain.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, timestamp INTEGER, data VARCHAR)`)
-    await this._chain.run(`CREATE UNIQUE INDEX idx_b_${this.index} ON block_${this.index} (hash)`)
+    await this._chain.run(`CREATE UNIQUE INDEX idx_b_h_${this.index} ON block_${this.index} (hash)`)
   }
 
   async delete () {
@@ -112,11 +131,15 @@ class Block {
       let hashRows = await this._block.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
 
       if (hashRows.length > 0) {
-        this._hash = new ObjectHash().hash([this.nonce].concat(hashRows))
+        this._transactionHashArray = []
+        hashRows.forEach((row, i) => {
+          this._transactionHashArray.push(row['hash'])
+        })
       }
-    } else {
-      this._hash = new ObjectHash().hash([this.nonce].concat(this._transactionHashArray))
     }
+
+    // Create block hash using block uniques
+    this._hash = new ObjectHash().hash(this.array.concat(this._transactionHashArray))
 
     return this._hash
   }
@@ -165,21 +188,19 @@ class Block {
 
 // Each Chain is a group of Blocks
 class Chain {
-  constructor (name, powHashPrefix = 'dab') {
+  constructor (name, powHashPrefix = 'dab7') {
     this.name = name
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
+    this.previousBlock = {
+      index: -1,
+      hash: -1
+    }
   }
 
   async _addBlockToChain () {
     try {
-      await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?)', [
-        this.currentBlock.index,
-        this.currentBlock.hash,
-        this.currentBlock.previousHash,
-        this.currentBlock.nonce,
-        this.currentBlock.timestamp
-      ])
+      await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.workingBlock.array)
 
       return true
     } catch (err) {
@@ -190,14 +211,17 @@ class Chain {
   async _createNewBlock () {
     // Finalize the current block
     if (await this._finalizeBlock() === true) {
+      // Set the previous block to the working block
+      this.previousBlock = this.workingBlock
+
       // Replace the current block with a new one
-      this.currentBlock = new Block(this._chain, this.currentBlock.index + 1, this.currentBlock.hash, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)))
-      await this.currentBlock.initialize()
+      this.workingBlock = new Block(this._chain, this.workingBlock.index + 1)
+      await this.workingBlock.initialize()
     }
   }
 
   async _finalizeBlock () {
-    await this.currentBlock._proofOfWork(this.powHashPrefix)
+    await this.workingBlock.build(this.previousBlock.hash, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)), this.powHashPrefix)
 
     if (await this._addBlockToChain() === true) {
       return true
@@ -207,25 +231,25 @@ class Chain {
   }
 
   async _seedChain () {
+    // Get the last entry in the block list for previous block
     let finalRow = await this._chain.all('SELECT * FROM block ORDER BY i DESC LIMIT 1')
 
-    if (finalRow.length === 0) {
-      this.currentBlock = new Block(this._chain, 0, -1)
-      await this.currentBlock.initialize()
-
-      // await this._addBlockToChain(this.currentBlock)
-    } else {
-      this.currentBlock = new Block(this._chain, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
-      this.currentBlock.calculateHash(true)
+    if (finalRow.length > 0) {
+      this.previousBlock = new Block(this._chain, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
+      this.previousBlock.calculateHash(true)
     }
+
+    // Build our current block
+    this.workingBlock = new Block(this._chain, 0, -1)
+    await this.workingBlock.initialize()
 
     return true
   }
 
   async add (transaction) {
-    if (await this.currentBlock.add(transaction) === true) {
+    if (await this.workingBlock.add(transaction) === true) {
 
-      if (this.currentBlock.length >= this.currentBlock.maxTransactions) {
+      if (this.workingBlock.length >= this.workingBlock.maxTransactions) {
         await this._createNewBlock()
       }
 
@@ -239,8 +263,9 @@ class Chain {
     this._chain = await sqlite.open(`./${this.name}.db`, { Promise })
 
     // Initialize block table
-    await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, nonce INTEGER, timestamp INTEGER)`)
-    await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_block ON block (hash)`)
+    await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
+    await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
+    await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
     if (seed === true) {
       await this._seedChain()
@@ -250,7 +275,7 @@ class Chain {
   }
 
   get length () {
-    return this.currentBlock.index + 1
+    return this.workingBlock.index + 1
   }
 }
 
