@@ -238,6 +238,7 @@ class Chain {
     this.name = name
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
+    this._transactionPool = []
   }
 
   async _createNewBlock () {
@@ -282,15 +283,19 @@ class Chain {
   }
 
   async add (transaction) {
-    if (await this.workingBlock.add(transaction) === true) {
-      if (this.workingBlock.length >= this.workingBlock.maxTransactions) {
-        await this._createNewBlock()
+    this._transactionPool.push(transaction)
+
+    if (this._transactionPool.length >= this.workingBlock.maxTransactions) {
+      for (let t in this._transactionPool) {
+        await this.workingBlock.add(transaction)
       }
 
-      return true
+      // Clear transaction pool and create new block
+      this._transactionPool = []
+      await this._createNewBlock()
     }
 
-    return false
+    return true
   }
 
   async initialize (reload = true) {
