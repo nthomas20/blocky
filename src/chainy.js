@@ -8,7 +8,6 @@
  */
 
 const ObjectHash = require('node-object-hash')
-const crypto = require('crypto')
 const sqlite = require('sqlite')
 
 // Each Transaction is a single event
@@ -114,6 +113,16 @@ class Block {
     await this._proofOfWork(powHashPrefix)
   }
 
+  async commit () {
+    try {
+      await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.array)
+
+      return true
+    } catch (err) {
+      return false
+    }
+  }
+
   async initialize () {
     await this.delete()
 
@@ -123,12 +132,12 @@ class Block {
 
   async delete () {
     await this._chain.run(`DROP TABLE IF EXISTS block_${this.index}`)
-    await this._chain.run(`DROP INDEX IF EXISTS idx_b_${this.index}`)
+    await this._chain.run(`DROP INDEX IF EXISTS idx_b_h_${this.index}`)
   }
 
   async calculateHash (force = false) {
     if (force === true || this._transactionHashArray.length !== this.length) {
-      let hashRows = await this._block.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
+      let hashRows = await this._chain.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
 
       if (hashRows.length > 0) {
         this._transactionHashArray = []
@@ -156,21 +165,6 @@ class Block {
     return this._index
   }
 
-  isValid (previousBlock) {
-    if (previousBlock.index + 1 !== this.index) {
-      // Invalid index
-      return false
-    } else if (previousBlock.calculateHash(true) !== this.previousHash) {
-      // The previous hash is incorrect
-      return false
-    } else if (this.hash !== this.calculateHash(true)) {
-      // The hash isn't correct
-      return false
-    }
-
-    return true
-  }
-
   get length () {
     return this._length
   }
@@ -192,20 +186,7 @@ class Chain {
     this.name = name
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
-    this.previousBlock = {
-      index: -1,
-      hash: -1
-    }
-  }
-
-  async _addBlockToChain () {
-    try {
-      await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.workingBlock.array)
-
-      return true
-    } catch (err) {
-      return false
-    }
+    this.previousBlock = null
   }
 
   async _createNewBlock () {
@@ -221,9 +202,17 @@ class Chain {
   }
 
   async _finalizeBlock () {
-    await this.workingBlock.build(this.previousBlock.hash, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)), this.powHashPrefix)
+    // Manage against the genesis block which has no actual record
+    let previousHash = null
 
-    if (await this._addBlockToChain() === true) {
+    if (this.previousBlock !== null) {
+      previousHash = this.previousBlock.hash
+    }
+
+    await this.workingBlock.build(previousHash, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)), this.powHashPrefix)
+
+    // TODO: Validate block as part of the commit
+    if (await this.workingBlock.commit() === true) {
       return true
     } else {
       return false
@@ -236,7 +225,6 @@ class Chain {
 
     if (finalRow.length > 0) {
       this.previousBlock = new Block(this._chain, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
-      this.previousBlock.calculateHash(true)
     }
 
     // Build our current block
@@ -248,7 +236,6 @@ class Chain {
 
   async add (transaction) {
     if (await this.workingBlock.add(transaction) === true) {
-
       if (this.workingBlock.length >= this.workingBlock.maxTransactions) {
         await this._createNewBlock()
       }
