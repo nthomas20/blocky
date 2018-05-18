@@ -5,7 +5,7 @@ const {promisify} = require('util')
 
 async function run () {
   let chain = new tc.Chain('chainy')
-  await chain.initialize()
+  await chain.initialize(false)
 
   await chain.add(new tc.Transaction('my data 1'))
   await chain.add(new tc.Transaction('my data 2'))

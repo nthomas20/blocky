@@ -258,16 +258,24 @@ class Chain {
     return true
   }
 
-  async _seedChain () {
+  async _loadChain (reload = true) {
     // Get the last entry in the block list for previous block
-    let finalRow = await this._chain.all('SELECT * FROM block ORDER BY i DESC LIMIT 1')
+    let finalRow = []
+
+    if (reload === true) {
+      finalRow = await this._chain.all('SELECT * FROM block ORDER BY i DESC LIMIT 1')
+    }
 
     if (finalRow.length > 0) {
       this.previousBlock = new Block(this, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
+
+      // Build our current block
+      this.workingBlock = new Block(this, finalRow[0].i + 1)
+    } else {
+      // Build our current block
+      this.workingBlock = new Block(this, 0)
     }
 
-    // Build our current block
-    this.workingBlock = new Block(this, 0, -1)
     await this.workingBlock.initialize()
 
     return true
@@ -285,20 +293,27 @@ class Chain {
     return false
   }
 
-  async initialize (seed = true) {
+  async initialize (reload = true) {
     // Assign our queue
     this.queue = new Queue(this)
 
     this._chain = await sqlite.open(`./${this.name}.db`, { Promise })
+
+    if (reload === false) {
+      // Clear out the entire chain, and all blocks, SCARY!
+      await this._chain.run(`PRAGMA writable_schema = 1`)
+      await this._chain.run(`DELETE FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')`)
+      await this._chain.run(`PRAGMA writable_schema = 0`)
+      await this._chain.run(`VACUUM`)
+      await this._chain.run(`PRAGMA INTEGRITY_CHECK`)
+    }
 
     // Initialize block table
     await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
-    if (seed === true) {
-      await this._seedChain()
-    }
+    await this._loadChain(reload)
 
     return true
   }
