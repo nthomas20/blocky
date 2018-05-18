@@ -21,8 +21,6 @@ async function run () {
   console.log(rows)
 
   console.log(chain.length)
-  console.log(chain.previousBlock.length)
-  console.log(chain.previousBlock.previousHash)
   console.log(chain.workingBlock.length)
   console.log(chain.workingBlock.previousHash)
 

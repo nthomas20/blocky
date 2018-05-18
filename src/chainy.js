@@ -244,9 +244,6 @@ class Chain {
   async _createNewBlock () {
     // Finalize the current block
     if (await this._finalizeBlock() === true) {
-      // Set the previous block to the working block
-      this.previousBlock = this.workingBlock
-
       // Replace the current block with a new one
       this.workingBlock = new Block(this, this.workingBlock.index + 1)
       await this.workingBlock.initialize()
@@ -264,16 +261,13 @@ class Chain {
     let finalRow = []
 
     if (reload === true) {
-      finalRow = await this._chain.all('SELECT * FROM block ORDER BY i DESC LIMIT 1')
+      finalRow = await this._chain.all('SELECT i FROM block ORDER BY i DESC LIMIT 1')
     }
 
+    // Build our current block
     if (finalRow.length > 0) {
-      this.previousBlock = new Block(this, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
-
-      // Build our current block
       this.workingBlock = new Block(this, finalRow[0].i + 1)
     } else {
-      // Build our current block
       this.workingBlock = new Block(this, 0)
     }
 
