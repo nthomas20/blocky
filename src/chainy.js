@@ -9,6 +9,41 @@
 
 const ObjectHash = require('node-object-hash')
 const sqlite = require('sqlite')
+const queue = require('queue')
+
+// The queue is the block processor
+// Chain commits blocks into the queue for processing
+// Blocks can pile up and will get processed and validated in order no matter how far ahead the chain may be in building blocks
+class Queue {
+  constructor (chain) {
+    this._queue = queue({
+      concurrency: 1,
+      autostart: true
+    })
+    this.chain = chain
+  }
+
+  async push (block, randomNonce, powHashPrefix) {
+    this._queue.push(() => {
+      return new Promise(async (resolve, reject) => {
+        // Grab the previous hash
+        let previousHash = null
+
+        if (block.index > 0) {
+          let previousBlock = new Block(this.chain)
+          await previousBlock.load(block.index - 1)
+          previousHash = await previousBlock.calculateHash(true)
+        }
+
+        await block.build(previousHash, randomNonce, powHashPrefix)
+
+        await block.commit()
+
+        return resolve(true)
+      })
+    })
+  }
+}
 
 // Each Transaction is a single event
 class Transaction {
@@ -37,7 +72,7 @@ class Transaction {
 
 // Each Block is a group of transactions
 class Block {
-  constructor (_chain, index, timestamp = null) {
+  constructor (chain, index = -9, timestamp = null) {
     this.maxTransactions = 2
     this._index = index
     this._length = 0
@@ -52,7 +87,8 @@ class Block {
       this.timestamp = timestamp
     }
 
-    this._chain = _chain
+    this._chain = chain._chain
+    this._metaChain = chain
   }
 
   async _addTransactionToBlock (transaction) {
@@ -70,6 +106,17 @@ class Block {
       return true
     } catch (err) {
       return false
+    }
+  }
+
+  async _loadTransactionHashes () {
+    let hashRows = await this._chain.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
+
+    if (hashRows.length > 0) {
+      this._transactionHashArray = []
+      hashRows.forEach((row, i) => {
+        this._transactionHashArray.push(row['hash'])
+      })
     }
   }
 
@@ -114,6 +161,7 @@ class Block {
   }
 
   async commit () {
+    // Check if block is the current working block
     try {
       await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.array)
 
@@ -137,24 +185,13 @@ class Block {
 
   async calculateHash (force = false) {
     if (force === true || this._transactionHashArray.length !== this.length) {
-      let hashRows = await this._chain.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
-
-      if (hashRows.length > 0) {
-        this._transactionHashArray = []
-        hashRows.forEach((row, i) => {
-          this._transactionHashArray.push(row['hash'])
-        })
-      }
+      await this._loadTransactionHashes()
     }
 
     // Create block hash using block uniques
     this._hash = new ObjectHash().hash(this.array.concat(this._transactionHashArray))
 
     return this._hash
-  }
-
-  set current (isCurrent) {
-    this._current = isCurrent
   }
 
   get hash () {
@@ -167,6 +204,21 @@ class Block {
 
   get length () {
     return this._length
+  }
+
+  async load (i) {
+    let blockData = await this._chain.all('SELECT * FROM block WHERE i = ? LIMIT 1', [i])
+
+    if (blockData) {
+      this._index = i
+      this._hash = blockData[0]['hash']
+      this.previousHash = blockData[0]['previousHash']
+      this._length = blockData[0]['length']
+      this.nonce = blockData[0]['nonce']
+      this.timestamp = blockData[0]['timestamp']
+
+      await this._loadTransactionHashes()
+    }
   }
 
   get nonce () {
@@ -186,7 +238,6 @@ class Chain {
     this.name = name
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
-    this.previousBlock = null
   }
 
   async _createNewBlock () {
@@ -196,27 +247,15 @@ class Chain {
       this.previousBlock = this.workingBlock
 
       // Replace the current block with a new one
-      this.workingBlock = new Block(this._chain, this.workingBlock.index + 1)
+      this.workingBlock = new Block(this, this.workingBlock.index + 1)
       await this.workingBlock.initialize()
     }
   }
 
   async _finalizeBlock () {
-    // Manage against the genesis block which has no actual record
-    let previousHash = null
+    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)), this.powHashPrefix)
 
-    if (this.previousBlock !== null) {
-      previousHash = this.previousBlock.hash
-    }
-
-    await this.workingBlock.build(previousHash, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)), this.powHashPrefix)
-
-    // TODO: Validate block as part of the commit
-    if (await this.workingBlock.commit() === true) {
-      return true
-    } else {
-      return false
-    }
+    return true
   }
 
   async _seedChain () {
@@ -224,11 +263,11 @@ class Chain {
     let finalRow = await this._chain.all('SELECT * FROM block ORDER BY i DESC LIMIT 1')
 
     if (finalRow.length > 0) {
-      this.previousBlock = new Block(this._chain, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
+      this.previousBlock = new Block(this, finalRow[0].i, finalRow[0].previousHash, finalRow[0].timestamp, finalRow[0].nonce)
     }
 
     // Build our current block
-    this.workingBlock = new Block(this._chain, 0, -1)
+    this.workingBlock = new Block(this, 0, -1)
     await this.workingBlock.initialize()
 
     return true
@@ -247,6 +286,9 @@ class Chain {
   }
 
   async initialize (seed = true) {
+    // Assign our queue
+    this.queue = new Queue(this)
+
     this._chain = await sqlite.open(`./${this.name}.db`, { Promise })
 
     // Initialize block table

@@ -15,9 +15,9 @@ async function run () {
   await chain.add(new tc.Transaction('my data 6'))
 
   let rows
-  rows = await chain._chain.all('SELECT * FROM block_2')
-  console.log(rows)
   rows = await chain._chain.all('SELECT * FROM block')
+  console.log(rows)
+  rows = await chain._chain.all('SELECT * FROM block_2')
   console.log(rows)
 
   console.log(chain.length)
@@ -25,6 +25,11 @@ async function run () {
   console.log(chain.previousBlock.previousHash)
   console.log(chain.workingBlock.length)
   console.log(chain.workingBlock.previousHash)
+
+  let block = new tc.Block(chain)
+  await block.load(0)
+  console.log(block.length)
+  console.log(block._transactionHashArray)
 
   await chain._chain.close()
 }
