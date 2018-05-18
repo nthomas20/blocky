@@ -89,11 +89,12 @@ class Block {
 
     this._chain = chain._chain
     this._metaChain = chain
+    this._block = null
   }
 
   async _addTransactionToBlock (transaction) {
     try {
-      await this._chain.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?)`, [
+      await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?)`, [
         this.length,
         transaction.hash,
         transaction.timestamp,
@@ -110,13 +111,15 @@ class Block {
   }
 
   async _loadTransactionHashes () {
-    let hashRows = await this._chain.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
+    if (this._block !== null) {
+      let hashRows = await this._block.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
 
-    if (hashRows.length > 0) {
-      this._transactionHashArray = []
-      hashRows.forEach((row, i) => {
-        this._transactionHashArray.push(row['hash'])
-      })
+      if (hashRows.length > 0) {
+        this._transactionHashArray = []
+        hashRows.forEach((row, i) => {
+          this._transactionHashArray.push(row['hash'])
+        })
+      }
     }
   }
 
@@ -165,27 +168,40 @@ class Block {
     try {
       await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.array)
 
+      for (let t in this._transactionHashArray) {
+        await this._chain.run('INSERT INTO trans VALUES (?, ?)', [this._transactionHashArray[t], this.index])
+      }
+
       return true
     } catch (err) {
+      console.error(err)
       return false
     }
   }
 
   async initialize () {
-    await this.delete()
+    if (this._block === null) {
+      this._block = await sqlite.open(`./b_${this._metaChain.name}_${this.index}.db`, { Promise })
 
-    await this._chain.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, timestamp INTEGER, data VARCHAR)`)
-    await this._chain.run(`CREATE UNIQUE INDEX idx_b_h_${this.index} ON block_${this.index} (hash)`)
+      await this.delete()
+
+      await this._block.run(`CREATE TABLE IF NOT EXISTS block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, timestamp INTEGER, data VARCHAR)`)
+      await this._block.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h_${this.index} ON block_${this.index} (hash)`)
+    }
   }
 
   async delete () {
-    await this._chain.run(`DROP TABLE IF EXISTS block_${this.index}`)
-    await this._chain.run(`DROP INDEX IF EXISTS idx_b_h_${this.index}`)
+    if (this._block !== null) {
+      await this._block.run(`DROP TABLE IF EXISTS block_${this.index}`)
+      await this._block.run(`DROP INDEX IF EXISTS idx_b_h_${this.index}`)
+    }
   }
 
   async calculateHash (force = false) {
-    if (force === true || this._transactionHashArray.length !== this.length) {
-      await this._loadTransactionHashes()
+    if (this._block !== null) {
+      if (force === true || this._transactionHashArray.length !== this.length) {
+        await this._loadTransactionHashes()
+      }
     }
 
     // Create block hash using block uniques
@@ -281,7 +297,7 @@ class Chain {
 
     if (this._transactionPool.length >= this.workingBlock.maxTransactions) {
       for (let t in this._transactionPool) {
-        await this.workingBlock.add(transaction)
+        await this.workingBlock.add(this._transactionPool[t])
       }
 
       // Clear transaction pool and create new block
@@ -311,6 +327,8 @@ class Chain {
     await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
+
+    await this._chain.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, i INTEGER)`)
 
     await this._loadChain(reload)
 

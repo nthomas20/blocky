@@ -17,7 +17,7 @@ async function run () {
   let rows
   rows = await chain._chain.all('SELECT * FROM block')
   console.log(rows)
-  rows = await chain._chain.all('SELECT * FROM block_2')
+  rows = await chain._chain.all('SELECT * FROM trans')
   console.log(rows)
 
   console.log(chain.length)
