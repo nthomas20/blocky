@@ -19,7 +19,7 @@ async function end () {
 
   console.log('chain.length', chain.length)
 
-  console.log('--- block 0 info')
+  console.log('--- block 2 info')
   let block = new tc.Block(chain, 2)
   await block.load()
   console.log(block.metaData)

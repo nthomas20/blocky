@@ -323,7 +323,7 @@ class Chain {
   }
 
   get length () {
-    return this.workingBlock.index + 1
+    return this.workingBlock.index
   }
 
   on (event, callback) {
