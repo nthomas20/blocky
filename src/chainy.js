@@ -80,7 +80,6 @@ class Transaction {
 // Each Block is a group of transactions
 class Block {
   constructor (chain, index, timestamp = null) {
-    this.maxTransactions = 2
     this._index = index
     this._length = 0
     this._hash = null
@@ -121,6 +120,8 @@ class Block {
           this.nonce = this.nonce + 1
         }
       }
+    } else {
+      await this.calculateHash()
     }
   }
 
@@ -231,10 +232,16 @@ class Block {
 
 // Each Chain is a group of Blocks
 class Chain {
-  constructor (name, engine, powHashPrefix = 'dab7') {
+  constructor (name, engine, options = {}) {
     this.name = name
-    this.powHashPrefix = powHashPrefix
-    this.maxRandomNonce = 876348467
+
+    // Set my defaults
+    this.options = Object.assign({
+      powHashPrefix: null,
+      maxRandomNonce: 876348467,
+      maxBlockTransactions: 1000
+    }, options)
+
     this._transactionPool = {}
     this.engine = engine
     this._chain = new this.engine.Chain(name)
@@ -251,7 +258,7 @@ class Chain {
   }
 
   async _finalizeBlock () {
-    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.maxRandomNonce)), this.powHashPrefix)
+    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxRandomNonce)), this.options.powHashPrefix)
 
     return true
   }
@@ -304,7 +311,7 @@ class Chain {
     this._transactionPool[this.workingBlock.index].push(transaction)
 
     // If it's time to push transactions into a block, then let's do it!
-    if (this._transactionPool[this.workingBlock.index].length >= this.workingBlock.maxTransactions) {
+    if (this._transactionPool[this.workingBlock.index].length >= this.options.maxBlockTransactions) {
       for (let t in this._transactionPool[this.workingBlock.index]) {
         if (await this.workingBlock.add(this._transactionPool[this.workingBlock.index][t]) === false) {
           return false
