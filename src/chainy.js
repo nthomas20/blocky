@@ -254,16 +254,21 @@ class Chain {
   }
 
   async _initializeEvents () {
+    // Handle the block queue processing events
     this.queue._queue.on('success', (result, job) => {
       this._eventEmitter.emit('blockCommit', result, job)
     })
 
     this.queue._queue.on('error', (index, job) => {
-      this._eventEmitter('blockCommitError', index)
+      this._eventEmitter.emit('blockCommitError', index)
     })
 
     this.queue._queue.on('timeout', (result, job) => {
-      this._eventEmitter('blockCommitTimeout')
+      this._eventEmitter.emit('blockCommitTimeout')
+    })
+
+    this.queue._queue.on('end', () => {
+      this._eventEmitter.emit('blockCommitsComplete', true)
     })
   }
 
