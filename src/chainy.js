@@ -79,7 +79,7 @@ class Transaction {
 
 // Each Block is a group of transactions
 class Block {
-  constructor (chain, index = -9, timestamp = null) {
+  constructor (chain, index, timestamp = null) {
     this.maxTransactions = 2
     this._index = index
     this._length = 0
