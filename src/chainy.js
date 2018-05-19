@@ -10,6 +10,8 @@
 const ObjectHash = require('node-object-hash')
 const sqlite = require('sqlite')
 const queue = require('queue')
+const fs = require('fs')
+const path = require('path')
 
 // The queue is the block processor
 // Chain commits blocks into the queue for processing
@@ -87,7 +89,6 @@ class Block {
       this.timestamp = timestamp
     }
 
-    this._chain = chain._chain
     this._metaChain = chain
     this._block = null
   }
@@ -166,11 +167,13 @@ class Block {
   async commit () {
     // Check if block is the current working block
     try {
-      await this._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.array)
+      await this._metaChain._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.array)
 
       for (let t in this._transactionHashArray) {
-        await this._chain.run('INSERT INTO trans VALUES (?, ?)', [this._transactionHashArray[t], this.index])
+        await this._metaChain._transIDX.run('INSERT INTO trans VALUES (?, ?)', [this._transactionHashArray[t], this.index])
       }
+
+      await this._block.close(true)
 
       return true
     } catch (err) {
@@ -181,7 +184,7 @@ class Block {
 
   async initialize () {
     if (this._block === null) {
-      this._block = await sqlite.open(`./b_${this._metaChain.name}_${this.index}.db`, { Promise })
+      this._block = await sqlite.open(`${this._metaChain.path}/b_${this._metaChain.name}_${this.index}.db`, { Promise })
 
       await this.delete()
 
@@ -223,7 +226,7 @@ class Block {
   }
 
   async load (i) {
-    let blockData = await this._chain.all('SELECT * FROM block WHERE i = ? LIMIT 1', [i])
+    let blockData = await this._metaChain._chain.all('SELECT * FROM block WHERE i = ? LIMIT 1', [i])
 
     if (blockData) {
       this._index = i
@@ -251,7 +254,8 @@ class Block {
 // Each Chain is a group of Blocks
 class Chain {
   constructor (name, powHashPrefix = 'dab7') {
-    this.name = name
+    this.path = path.dirname(name)
+    this.name = path.basename(name)
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
     this._transactionPool = []
@@ -312,23 +316,26 @@ class Chain {
     // Assign our queue
     this.queue = new Queue(this)
 
-    this._chain = await sqlite.open(`./${this.name}.db`, { Promise })
-
     if (reload === false) {
-      // Clear out the entire chain, and all blocks, SCARY!
-      await this._chain.run(`PRAGMA writable_schema = 1`)
-      await this._chain.run(`DELETE FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')`)
-      await this._chain.run(`PRAGMA writable_schema = 0`)
-      await this._chain.run(`VACUUM`)
-      await this._chain.run(`PRAGMA INTEGRITY_CHECK`)
+      // Clear out the chain's data files
+      if (fs.existsSync(this.path)) {
+        fs.readdirSync(this.path).forEach((file, index) => {
+          if (file.indexOf(this.name) !== -1) {
+            fs.unlinkSync(path.join(this.path, file))
+          }
+        })
+      }
     }
+
+    this._chain = await sqlite.open(`${this.path}/${this.name}.db`, { Promise })
+    this._transIDX = await sqlite.open(`${this.path}/${this.name}.t.idx.db`, { Promise })
 
     // Initialize block table
     await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
-    await this._chain.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, i INTEGER)`)
+    await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, i INTEGER)`)
 
     await this._loadChain(reload)
 

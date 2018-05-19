@@ -4,8 +4,8 @@ const tc = require('../src/chainy')
 const {promisify} = require('util')
 
 async function run () {
-  let chain = new tc.Chain('chainy')
-  await chain.initialize()
+  let chain = new tc.Chain('./data/chainy')
+  await chain.initialize(false)
 
   await chain.add(new tc.Transaction('my data 1'))
   await chain.add(new tc.Transaction('my data 2'))
@@ -17,7 +17,7 @@ async function run () {
   let rows
   rows = await chain._chain.all('SELECT * FROM block')
   console.log(rows)
-  rows = await chain._chain.all('SELECT * FROM trans')
+  rows = await chain._transIDX.all('SELECT * FROM trans')
   console.log(rows)
 
   console.log(chain.length)
@@ -30,6 +30,7 @@ async function run () {
   console.log(block._transactionHashArray)
 
   await chain._chain.close()
+  await chain._transIDX.close()
 }
 
 let runAsync = promisify(run)
