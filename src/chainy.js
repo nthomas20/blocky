@@ -268,7 +268,7 @@ class Chain {
     })
 
     this.queue._queue.on('end', () => {
-      this._eventEmitter.emit('blockCommitsComplete', true)
+      this._eventEmitter.emit('blockCommitQueueEmpty', true)
     })
   }
 
