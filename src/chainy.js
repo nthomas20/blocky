@@ -8,10 +8,8 @@
  */
 
 const ObjectHash = require('node-object-hash')
-const sqlite = require('sqlite')
 const queue = require('queue')
-const fs = require('fs')
-const path = require('path')
+const EventEmitter = require('events')
 
 // The queue is the block processor
 // Chain commits blocks into the queue for processing
@@ -20,6 +18,7 @@ class Queue {
   constructor (chain) {
     this._queue = queue({
       concurrency: 1,
+      timeout: 5000,
       autostart: true
     })
     this.chain = chain
@@ -32,8 +31,11 @@ class Queue {
         let previousHash = null
 
         if (block.index > 0) {
-          let previousBlock = new Block(this.chain)
-          await previousBlock.load(block.index - 1)
+          let previousBlock = new Block(this.chain, block.index - 1, 0)
+          if (await previousBlock.load() === false) {
+            return reject(block.index)
+          }
+
           previousHash = await previousBlock.calculateHash(true)
         }
 
@@ -41,7 +43,7 @@ class Queue {
 
         await block.commit()
 
-        return resolve(true)
+        return resolve(block.index)
       })
     })
   }
@@ -90,37 +92,16 @@ class Block {
     }
 
     this._metaChain = chain
-    this._block = null
+    this._block = new chain.engine.Block(chain, index)
   }
 
-  async _addTransactionToBlock (transaction) {
+  async _loadTransactionHashes () {
     try {
-      await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?)`, [
-        this.length,
-        transaction.hash,
-        transaction.timestamp,
-        JSON.stringify(transaction.data)
-      ])
-
-      this._transactionHashArray.push(transaction.hash)
-      this._length++
+      this._transactionHashArray = await this._block.loadTransactionHashes()
 
       return true
     } catch (err) {
       return false
-    }
-  }
-
-  async _loadTransactionHashes () {
-    if (this._block !== null) {
-      let hashRows = await this._block.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
-
-      if (hashRows.length > 0) {
-        this._transactionHashArray = []
-        hashRows.forEach((row, i) => {
-          this._transactionHashArray.push(row['hash'])
-        })
-      }
     }
   }
 
@@ -141,12 +122,19 @@ class Block {
   }
 
   async add (transaction) {
-    let success = await this._addTransactionToBlock(transaction)
+    try {
+      await this._block.addTransactionToBlock(transaction, this.length)
 
-    return success
+      this._transactionHashArray.push(transaction.hash)
+      this._length++
+
+      return true
+    } catch (err) {
+      return false
+    }
   }
 
-  get array () {
+  get metaData () {
     return [
       this.index,
       this.hash,
@@ -165,39 +153,21 @@ class Block {
   }
 
   async commit () {
-    // Check if block is the current working block
-    try {
-      await this._metaChain._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', this.array)
+    let success = await this._block.commit(this.metaData)
 
-      for (let t in this._transactionHashArray) {
-        await this._metaChain._transIDX.run('INSERT INTO trans VALUES (?, ?)', [this._transactionHashArray[t], this.index])
-      }
-
-      await this._block.close(true)
-
-      return true
-    } catch (err) {
-      console.error(err)
-      return false
-    }
+    return success
   }
 
   async initialize () {
-    if (this._block === null) {
-      this._block = await sqlite.open(`${this._metaChain.path}/b_${this._metaChain.name}_${this.index}.db`, { Promise })
+    let success = await this._block.initialize()
 
-      await this.delete()
-
-      await this._block.run(`CREATE TABLE IF NOT EXISTS block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, timestamp INTEGER, data VARCHAR)`)
-      await this._block.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h_${this.index} ON block_${this.index} (hash)`)
-    }
+    return success
   }
 
   async delete () {
-    if (this._block !== null) {
-      await this._block.run(`DROP TABLE IF EXISTS block_${this.index}`)
-      await this._block.run(`DROP INDEX IF EXISTS idx_b_h_${this.index}`)
-    }
+    let success = await this._block.delete()
+
+    return success
   }
 
   async calculateHash (force = false) {
@@ -207,8 +177,12 @@ class Block {
       }
     }
 
+    // Don't include the current invalid hash in the data
+    let withoutHashMetaData = this.metaData
+    withoutHashMetaData.splice(1, 1)
+
     // Create block hash using block uniques
-    this._hash = new ObjectHash().hash(this.array.concat(this._transactionHashArray))
+    this._hash = new ObjectHash().hash(withoutHashMetaData.concat(this._transactionHashArray))
 
     return this._hash
   }
@@ -225,19 +199,22 @@ class Block {
     return this._length
   }
 
-  async load (i) {
-    let blockData = await this._metaChain._chain.all('SELECT * FROM block WHERE i = ? LIMIT 1', [i])
+  async load (index) {
+    let blockData = await this._block.load()
 
-    if (blockData) {
-      this._index = i
-      this._hash = blockData[0]['hash']
-      this.previousHash = blockData[0]['previousHash']
-      this._length = blockData[0]['length']
-      this.nonce = blockData[0]['nonce']
-      this.timestamp = blockData[0]['timestamp']
+    if (blockData && blockData['index'] === this.index) {
+      this._hash = blockData['hash']
+      this.previousHash = blockData['previousHash']
+      this._length = blockData['length']
+      this.nonce = blockData['nonce']
+      this.timestamp = blockData['timestamp']
 
       await this._loadTransactionHashes()
+
+      return true
     }
+
+    return false
   }
 
   get nonce () {
@@ -246,19 +223,19 @@ class Block {
 
   set nonce (nonce) {
     this._nonce = nonce
-
-    this.calculateHash()
   }
 }
 
 // Each Chain is a group of Blocks
 class Chain {
-  constructor (name, powHashPrefix = 'dab7') {
-    this.path = path.dirname(name)
-    this.name = path.basename(name)
+  constructor (name, engine, powHashPrefix = 'dab7') {
+    this.name = name
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
     this._transactionPool = []
+    this.engine = engine
+    this._chain = new this.engine.Chain(name)
+    this._eventEmitter = new EventEmitter()
   }
 
   async _createNewBlock () {
@@ -276,12 +253,26 @@ class Chain {
     return true
   }
 
+  async _initializeEvents () {
+    this.queue._queue.on('success', (result, job) => {
+      this._eventEmitter.emit('blockCommit', result, job)
+    })
+
+    this.queue._queue.on('error', (index, job) => {
+      this._eventEmitter('blockCommitError', index)
+    })
+
+    this.queue._queue.on('timeout', (result, job) => {
+      this._eventEmitter('blockCommitTimeout')
+    })
+  }
+
   async _loadChain (reload = true) {
     // Get the last entry in the block list for previous block
     let finalRow = []
 
     if (reload === true) {
-      finalRow = await this._chain.all('SELECT i FROM block ORDER BY i DESC LIMIT 1')
+      finalRow = await this._chain.getLastBlock()
     }
 
     // Build our current block
@@ -316,26 +307,10 @@ class Chain {
     // Assign our queue
     this.queue = new Queue(this)
 
-    if (reload === false) {
-      // Clear out the chain's data files
-      if (fs.existsSync(this.path)) {
-        fs.readdirSync(this.path).forEach((file, index) => {
-          if (file.indexOf(this.name) !== -1) {
-            fs.unlinkSync(path.join(this.path, file))
-          }
-        })
-      }
-    }
+    // Setup events
+    this._initializeEvents()
 
-    this._chain = await sqlite.open(`${this.path}/${this.name}.db`, { Promise })
-    this._transIDX = await sqlite.open(`${this.path}/${this.name}.t.idx.db`, { Promise })
-
-    // Initialize block table
-    await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
-    await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
-    await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
-
-    await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, i INTEGER)`)
+    await this._chain.initialize(reload)
 
     await this._loadChain(reload)
 
@@ -344,6 +319,10 @@ class Chain {
 
   get length () {
     return this.workingBlock.index + 1
+  }
+
+  on (event, callback) {
+    this._eventEmitter.on(event, callback)
   }
 }
 
