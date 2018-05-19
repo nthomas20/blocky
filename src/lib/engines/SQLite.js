@@ -41,7 +41,7 @@ class Block {
       let hashArray = await this.loadTransactionHashes()
 
       for (let t in hashArray) {
-        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?)', [hashArray[t], this.index])
+        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?)', [hashArray[t], this.index, t])
       }
 
       await this._block.close(true)
@@ -145,7 +145,7 @@ class Chain {
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
     await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
-    await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, i INTEGER)`)
+    await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, block INTEGER, i INTEGER)`)
 
     return true
   }

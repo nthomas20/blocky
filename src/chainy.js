@@ -43,6 +43,9 @@ class Queue {
 
         await block.commit()
 
+        // Clear the block's transactions from the chain
+        delete this.chain._transactionPool[block.index]
+
         return resolve(block.index)
       })
     })
@@ -232,7 +235,7 @@ class Chain {
     this.name = name
     this.powHashPrefix = powHashPrefix
     this.maxRandomNonce = 876348467
-    this._transactionPool = []
+    this._transactionPool = {}
     this.engine = engine
     this._chain = new this.engine.Chain(name)
     this._eventEmitter = new EventEmitter()
@@ -293,15 +296,22 @@ class Chain {
   }
 
   async add (transaction) {
-    this._transactionPool.push(transaction)
+    if (this._transactionPool.hasOwnProperty(this.workingBlock.index) === false) {
+      this._transactionPool[this.workingBlock.index] = []
+    }
 
-    if (this._transactionPool.length >= this.workingBlock.maxTransactions) {
-      for (let t in this._transactionPool) {
-        await this.workingBlock.add(this._transactionPool[t])
+    // Add the transaction
+    this._transactionPool[this.workingBlock.index].push(transaction)
+
+    // If it's time to push transactions into a block, then let's do it!
+    if (this._transactionPool[this.workingBlock.index].length >= this.workingBlock.maxTransactions) {
+      for (let t in this._transactionPool[this.workingBlock.index]) {
+        if (await this.workingBlock.add(this._transactionPool[this.workingBlock.index][t]) === false) {
+          return false
+        }
       }
 
       // Clear transaction pool and create new block
-      this._transactionPool = []
       await this._createNewBlock()
     }
 

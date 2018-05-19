@@ -33,7 +33,7 @@ async function end () {
 let endAsync = promisify(end)
 
 async function run () {
-  chain = new tc.Chain('./data/chainy', SQLite)
+  chain = new tc.Chain('data/chainy', SQLite)
 
   chain.on('blockCommit', (index, job) => {
     console.log('block committed', index)
