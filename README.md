@@ -1,2 +1,2 @@
-# blocky
+# data-chain
 NodeJS blockchain
