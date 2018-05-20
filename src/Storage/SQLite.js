@@ -77,7 +77,12 @@ class Block {
       let hashArray = await this.loadTransactionHashes(true)
 
       for (let t in hashArray) {
-        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], hashArray[t]['from'], hashArray[t]['to'], this.index, t])
+        let from = hashArray[t]['from']
+        let to = hashArray[t]['to']
+
+        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, this.index, t])
+        await this._chain._chain._memberFIDX.run('INSERT INTO member VALUES (?, ?, ?, ?)', [hashArray[t]['hash'], from, to, this.index])
+        await this._chain._chain._memberTIDX.run('INSERT INTO member VALUES (?, ?, ?, ?)', [hashArray[t]['hash'], from, to, this.index])
       }
 
       await this.close()
@@ -182,7 +187,8 @@ class Block {
    */
   async open () {
     if (this._block === null) {
-      this._block = await sqlite.open(`${this.path}/b_${this.name}_${this.index}.db`, { Promise })
+      let paddedIndex = `00000000000${this.index}`.substring(this.index.toString().length)
+      this._block = await sqlite.open(`${this.path}/${this.name}.b_${paddedIndex}.db`, { Promise })
     }
   }
 }
@@ -237,6 +243,8 @@ class Chain {
     try {
       this._chain = await sqlite.open(`${this.path}/${this.name}.db`, { Promise })
       this._transIDX = await sqlite.open(`${this.path}/${this.name}.t.idx.db`, { Promise })
+      this._memberTIDX = await sqlite.open(`${this.path}/${this.name}.m.t.idx.db`, { Promise })
+      this._memberFIDX = await sqlite.open(`${this.path}/${this.name}.m.f.idx.db`, { Promise })
 
       // Initialize block table
       await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
@@ -244,6 +252,12 @@ class Chain {
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
       await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, f VARCHAR, t VARCHAR, block INTEGER, i INTEGER)`)
+
+      await this._memberFIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, block INTEGER)`)
+      await this._memberFIDX.run(`CREATE INDEX IF NOT EXISTS idx_t_f ON member (f)`)
+
+      await this._memberTIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, block INTEGER)`)
+      await this._memberTIDX.run(`CREATE INDEX IF NOT EXISTS idx_t_t ON member (t)`)
     } catch (err) {
       return false
     }
