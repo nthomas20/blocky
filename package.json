@@ -1,13 +1,18 @@
 {
   "name": "data-block-chain",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Blockchain",
   "main": "./src/index.js",
   "repository": "https://github.com/nthomas20/data-chain.git",
   "author": "Nathaniel Thomas <nthomas20@gmail.com>",
   "license": "GPL-3.0",
+  "keywords": [
+    "blockchain",
+    "deferred processing",
+    "sqlite"
+  ],
   "private": false,
-  "_id": "data-block-chain@0.0.1",
+  "_id": "data-block-chain@0.0.2",
   "devDependencies": {
     "assert": "^1.4.1",
     "http-server": "^0.11.1",
@@ -16,7 +21,6 @@
     "standard": "^11.0.1"
   },
   "dependencies": {
-    "express": "^4.16.3",
     "node-object-hash": "^1.3.0",
     "queue": "^4.4.2",
     "sqlite": "^2.9.2"
