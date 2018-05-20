@@ -1,6 +1,6 @@
 {
   "name": "data-block-chain",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Blockchain",
   "main": "./src/index.js",
   "repository": "https://github.com/nthomas20/data-chain.git",
@@ -12,7 +12,7 @@
     "sqlite"
   ],
   "private": false,
-  "_id": "data-block-chain@0.0.2",
+  "_id": "data-block-chain@0.0.3",
   "devDependencies": {
     "assert": "^1.4.1",
     "http-server": "^0.11.1",
