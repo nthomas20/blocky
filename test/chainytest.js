@@ -1,7 +1,6 @@
 'use strict'
 
-const tc = require('../src/chainy')
-const SQLite = require('../src/lib/engines/SQLite')
+const Blocky = require('../src/index')
 const {promisify} = require('util')
 
 let chain
@@ -20,7 +19,7 @@ async function end () {
   console.log('chain.length', chain.length)
 
   console.log('--- block 2 info')
-  let block = new tc.Block(chain, 2)
+  let block = new Blocky.Blockchain.Chainy.Block(chain, 2)
   await block.load()
   console.log(block.metaData)
   console.log(block._transactionHashArray)
@@ -33,9 +32,13 @@ async function end () {
 let endAsync = promisify(end)
 
 async function run () {
-  chain = new tc.Chain('data/chainy', SQLite, {
+  chain = new Blocky.Blockchain.Chainy.Chain('data/chainy', Blocky.Storage.SQLite, {
     powHashPrefix: '000',
     maxBlockTransactions: 1
+  })
+
+  chain.on('blockSubmit', (index) => {
+    console.log('block submitted', index)
   })
 
   chain.on('blockCommit', (index, job) => {
@@ -55,12 +58,12 @@ async function run () {
   })
 
   await chain.initialize(false) // false means don't load an existing chain, default = true
-  await chain.add(new tc.Transaction('my data 1'))
-  await chain.add(new tc.Transaction('my data 2'))
-  await chain.add(new tc.Transaction('my data 3'))
-  await chain.add(new tc.Transaction('my data 4'))
-  await chain.add(new tc.Transaction('my data 5'))
-  await chain.add(new tc.Transaction('my data 6'))
+  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 1'))
+  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 2'))
+  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 3'))
+  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 4'))
+  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 5'))
+  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 6'))
 
   complete = true
 }
