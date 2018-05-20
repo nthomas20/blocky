@@ -76,17 +76,20 @@ class Queue {
 class Transaction {
   /**
    *
-   * @param {String|Object} data - Data to be set into the Transaction
+   * @param {String} data - Data to be set into the Transaction
    * @param {Number} [timestamp=null] - Number to force timestamp into a transaction. Use with care
    * @returns {Object} Transaction Instance
    */
-  constructor (data, timestamp = null) {
+  constructor (data, origin = null, destination = null, timestamp = null) {
     this.data = data
     if (timestamp === null) {
       this.timestamp = new Date() / 1
     } else {
       this.timestamp = timestamp
     }
+
+    this.origin = origin
+    this.destination = destination
 
     this.calculateHash()
   }
@@ -97,6 +100,8 @@ class Transaction {
   calculateHash () {
     this._hash = new ObjectHash().hash({
       data: this.data,
+      origin: this.origin,
+      destination: this.destination,
       timestamp: this.timestamp
     })
   }
@@ -466,6 +471,18 @@ class Chain {
     await this._loadChain(reload)
 
     return true
+  }
+
+  async findTransactionByHash (transactionHash) {
+    let transactionInfo = await this._chain.findTransactionByHash(transactionHash)
+
+    return transactionInfo
+  }
+
+  async findTransactionByAuthor (author, startPOS = 0, limit = 500) {
+    let transactionInfo = await this._chain.findTransactionByAuthor(author, startPOS, limit)
+
+    return transactionInfo
   }
 
   /**

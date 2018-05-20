@@ -37,12 +37,17 @@ class Block {
    */
   async addTransactionToBlock (transaction, length) {
     if (this._block !== null) {
-      await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?)`, [
-        length,
-        transaction.hash,
-        transaction.timestamp,
-        JSON.stringify(transaction.data)
-      ])
+      try {
+        await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?, ?, ?)`, [
+          length,
+          transaction.hash, transaction.origin, transaction.destination,
+          transaction.timestamp,
+          JSON.stringify(transaction.data)
+        ])
+      } catch (err) {
+        console.error(err)
+        return false
+      }
 
       return true
     }
@@ -113,9 +118,10 @@ class Block {
 
         await this.delete()
 
-        await this._block.run(`CREATE TABLE IF NOT EXISTS block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, timestamp INTEGER, data VARCHAR)`)
-        await this._block.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h_${this.index} ON block_${this.index} (hash)`)
+        await this._block.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, origin VARCHAR, destination VARCHAR, timestamp INTEGER, data VARCHAR)`)
+        await this._block.run(`CREATE UNIQUE INDEX idx_b_h_${this.index} ON block_${this.index} (hash)`)
       } catch (err) {
+        console.error(err)
         return false
       }
     }
@@ -238,6 +244,25 @@ class Chain {
     }
 
     return true
+  }
+
+  /**
+   * Find Transaction metadata by id
+   * @param {String} transactionID - Transaction Hash value to locate
+   * @returns {Object} Transaction metadata
+   */
+  async findTransactionByHash (transactionHash) {
+    let transData = await this._transIDX.all(`SELECT * FROM trans WHERE hash = ? LIMIT 1`, [transactionHash])
+
+    return transData
+  }
+
+  /**
+   * Find Transaction metadata by author
+   * @param {String} transactionID - Transaction Hash value to locate
+   * @returns {Object} Transaction metadata
+   */
+  async findTransactionByMember (member, startPOS = 0, limit = 500) {
   }
 }
 

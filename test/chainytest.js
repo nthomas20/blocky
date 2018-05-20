@@ -5,8 +5,10 @@ const {promisify} = require('util')
 
 let chain
 let complete = false
+let tx1, tx2
 
 async function end () {
+  console.log('END')
   let rows
   console.log('--- blocks')
   rows = await chain._chain._chain.all('SELECT * FROM block')
@@ -23,6 +25,12 @@ async function end () {
   await block.load()
   console.log(block.metaData)
   console.log(block._transactionHashArray)
+
+  console.log('--- finding hashes')
+  rows = await chain.findTransactionByHash(tx1.hash)
+  console.log(rows)
+  rows = await chain.findTransactionByHash(tx2.hash)
+  console.log(rows)
 
   // Since blocks are written asynchronously, premature closure of tables will prevent full block writes
   await chain._chain._chain.close()
@@ -50,6 +58,7 @@ async function run () {
   })
 
   chain.on('blockCommitQueueEmpty', () => {
+    console.log('blockCommitQueueEmpty', complete)
     if (complete === true) {
       // gotta wait until we're complete adding our transactions so we know the final complete
       // means that all blocks have been written
@@ -58,10 +67,12 @@ async function run () {
   })
 
   await chain.initialize(false) // false means don't load an existing chain, default = true
-  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 1'))
+  tx1 = new Blocky.Blockchain.Chainy.Transaction('my data 1')
+  await chain.add(tx1)
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 2'))
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 3'))
-  await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 4'))
+  tx2 = new Blocky.Blockchain.Chainy.Transaction('my data 4')
+  await chain.add(tx2)
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 5'))
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 6'))
 
