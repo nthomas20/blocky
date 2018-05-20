@@ -40,7 +40,7 @@ class Block {
       try {
         await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?, ?, ?)`, [
           length,
-          transaction.hash, transaction.origin, transaction.destination,
+          transaction.hash, transaction.from, transaction.to,
           transaction.timestamp,
           JSON.stringify(transaction.data)
         ])
@@ -74,10 +74,10 @@ class Block {
     try {
       await this._chain._chain._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', metaData)
 
-      let hashArray = await this.loadTransactionHashes()
+      let hashArray = await this.loadTransactionHashes(true)
 
       for (let t in hashArray) {
-        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?)', [hashArray[t], this.index, t])
+        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], hashArray[t]['from'], hashArray[t]['to'], this.index, t])
       }
 
       await this.close()
@@ -118,7 +118,7 @@ class Block {
 
         await this.delete()
 
-        await this._block.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, origin VARCHAR, destination VARCHAR, timestamp INTEGER, data VARCHAR)`)
+        await this._block.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, f VARCHAR, t VARCHAR, timestamp INTEGER, data VARCHAR)`)
         await this._block.run(`CREATE UNIQUE INDEX idx_b_h_${this.index} ON block_${this.index} (hash)`)
       } catch (err) {
         console.error(err)
@@ -154,18 +154,23 @@ class Block {
 
   /**
    * Load Transaction Hashes from storage
+   * @param {Boolean} [allData=false] - Return all data
    * @returns {Array} Array of transaction hashes
    */
-  async loadTransactionHashes () {
+  async loadTransactionHashes (allData = false) {
     let hashArray = []
 
     if (this._block !== null) {
-      let hashRows = await this._block.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
+      let hashRows = await this._block.all(`SELECT * FROM block_${this.index} ORDER BY i ASC`)
 
       if (hashRows.length > 0) {
-        hashRows.forEach((row, i) => {
-          hashArray.push(row['hash'])
-        })
+        if (allData === false) {
+          hashRows.forEach((row, i) => {
+            hashArray.push(row['hash'])
+          })
+        } else {
+          hashArray = hashRows
+        }
       }
     }
 
@@ -238,7 +243,7 @@ class Chain {
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
-      await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, block INTEGER, i INTEGER)`)
+      await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, f VARCHAR, t VARCHAR, block INTEGER, i INTEGER)`)
     } catch (err) {
       return false
     }

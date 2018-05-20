@@ -78,9 +78,11 @@ class Transaction {
    *
    * @param {String} data - Data to be set into the Transaction
    * @param {Number} [timestamp=null] - Number to force timestamp into a transaction. Use with care
+   * @param {String} [from=null] - The origin member of the transaction
+   * @param {String} [to=null] - The destination member of the transaction
    * @returns {Object} Transaction Instance
    */
-  constructor (data, origin = null, destination = null, timestamp = null) {
+  constructor (data, from = null, to = null, timestamp = null) {
     this.data = data
     if (timestamp === null) {
       this.timestamp = new Date() / 1
@@ -88,8 +90,8 @@ class Transaction {
       this.timestamp = timestamp
     }
 
-    this.origin = origin
-    this.destination = destination
+    this.from = from
+    this.to = to
 
     this.calculateHash()
   }
@@ -100,8 +102,8 @@ class Transaction {
   calculateHash () {
     this._hash = new ObjectHash().hash({
       data: this.data,
-      origin: this.origin,
-      destination: this.destination,
+      from: this.from,
+      to: this.to,
       timestamp: this.timestamp
     })
   }
