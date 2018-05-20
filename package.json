@@ -1,5 +1,5 @@
 {
-  "name": "data-chain",
+  "name": "data-block-chain",
   "version": "0.0.1",
   "description": "Blockchain",
   "main": "./src/index.js",
@@ -7,7 +7,7 @@
   "author": "Nathaniel Thomas <nthomas20@gmail.com>",
   "license": "GPL-3.0",
   "private": false,
-  "_id": "data-chain@0.0.1",
+  "_id": "data-block-chain@0.0.1",
   "devDependencies": {
     "assert": "^1.4.1",
     "http-server": "^0.11.1",
