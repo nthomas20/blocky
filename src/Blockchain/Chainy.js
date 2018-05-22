@@ -370,6 +370,7 @@ class Chain {
     this.storage = storage
     this._chain = new this.storage.Chain(name)
     this._eventEmitter = new EventEmitter()
+    this._length = 0
   }
 
   async _createNewBlock () {
@@ -392,6 +393,7 @@ class Chain {
   async _initializeEvents () {
     // Handle the block queue processing events
     this.queue._queue.on('success', (result, job) => {
+      this._length++
       this._eventEmitter.emit('blockCommit', result, job)
     })
 
@@ -492,7 +494,7 @@ class Chain {
    * @returns {Number} Length of the chain
    */
   get length () {
-    return this.workingBlock.index
+    return this._length
   }
 
   /**
