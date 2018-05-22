@@ -231,21 +231,27 @@ class Peer {
   }
 }
 
-class Self extends Peer {
-  connect () {
+class Self {
+  constructor (host, header, bufferSize) {
+    super(host, header, bufferSize)
+
+    this._server = null
+  }
+
+  listen () {
     this._state = 'connecting'
     this._inBuffer = Buffer.alloc(this._bufferSize)
     this._inCursor = 0
 
-    if (this._socket === null) {
-      let socket = net.createServer((server) => {
-
+    if (this._server === null) {
+      let server = net.createServer((socket) => {
+        // Here is the processing for when a connection is made in
       })
 
-      socket.on('data', this._socketEventData.bind(this))
-      socket.on('error', this._socketEventError.bind(this))
+      server.on('data', this._socketEventData.bind(this))
+      server.on('error', this._socketEventError.bind(this))
 
-      this._socket = new PromiseSocket(socket)
+      this._server.listen()
     }
 
     return this._socket
