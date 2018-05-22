@@ -23,9 +23,6 @@ class Host {
   }
 }
 
-/**
- *
- */
 class Peer {
   constructor (host, header = 0xA27CC1A2, bufferSize = 10485760) {
     this._host = host
@@ -241,7 +238,9 @@ class Self extends Peer {
     this._inCursor = 0
 
     if (this._socket === null) {
-      let socket = net.createServer(this._host.port, this._host.host, this._socketEventConnect.bind(this))
+      let socket = net.createServer((server) => {
+
+      })
 
       socket.on('data', this._socketEventData.bind(this))
       socket.on('error', this._socketEventError.bind(this))
