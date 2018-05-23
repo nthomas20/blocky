@@ -232,8 +232,10 @@ class Peer {
 }
 
 class Self {
-  constructor (host, header, bufferSize) {
-    super(host, header, bufferSize)
+  constructor (host, header = 0xA27CC1A2, bufferSize = 10485760) {
+    this._host = host
+    this._header = header
+    this._bufferSize = bufferSize
 
     this._server = null
   }
