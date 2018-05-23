@@ -9,17 +9,43 @@ const PromiseSocket = require('promise-socket')
 const EventEmitter = require('events')
 
 class Host {
-  constructor (host, port = 5744) {
-    this._host = host
+  constructor (address, port = 5744) {
+    // Accept a few shortcuts for local host
+    if (address.includes(['localhost'])) {
+      address = '127.0.0.1'
+    }
+
+    let version = net.isIP(address)
+
+    // Check family
+    if (version === 0) {
+      throw new Error('Unknown address family')
+    } else {
+      this._family = `IPv${version}`
+    }
+
+    this._address = address
     this._port = port
   }
 
-  get host () {
-    return this._host
+  get address () {
+    return this._address
   }
 
   get port () {
     return this._port
+  }
+
+  get family () {
+    return this._family
+  }
+
+  get object () {
+    return {
+      address: this.address,
+      family: this.family,
+      port: this.port
+    }
   }
 }
 
@@ -30,10 +56,10 @@ class Peer {
     this._header = header
     this._bufferSize = bufferSize
     this._socket = null
+    this._hash = null
+    this._connectionAttempts = 0
 
     this._eventEmitter = new EventEmitter()
-
-    this.connect()
   }
 
   _calculateChecksum (command, data = null) {
@@ -42,6 +68,7 @@ class Peer {
 
   _socketEventConnect () {
     this._state = 'connected'
+    this._connectionAttempts = 0
     this._eventEmitter.emit('connect', {
       peer: this
     })
@@ -100,7 +127,18 @@ class Peer {
   }
 
   _socketEventError (err) {
-    this._eventEmitter.emit('error', { peer: this, err: err.message })
+    if (this.state === 'connecting') {
+      this._connectionAttempts++
+
+      // Reset the socket to try again
+      this._socket = null
+
+      this.connect()
+    }
+
+    if (this.state !== 'connecting' || this._connectionAttempts === 10) {
+      this._eventEmitter.emit('error', { peer: this, err: err })
+    }
   }
 
   _socketEventClose (err) {
@@ -108,13 +146,19 @@ class Peer {
     this._eventEmitter.emit('close', { peer: this, err: err })
   }
 
-  connect () {
-    this._state = 'connecting'
+  connect (socket = null) {
     this._inBuffer = Buffer.alloc(this._bufferSize)
     this._inCursor = 0
 
     if (this._socket === null) {
-      let socket = net.createConnection(this._host.port, this._host.host, this._socketEventConnect.bind(this))
+      if (socket === null) {
+        console.debug('Creating new outgoing connection...')
+        this._state = 'connecting'
+        socket = net.createConnection(this._host.port, this._host.address, this._socketEventConnect.bind(this))
+      } else {
+        this._state = 'connected'
+        console.debug('Using provided existing socket connection...')
+      }
 
       socket.on('data', this._socketEventData.bind(this))
       socket.on('error', this._socketEventError.bind(this))
@@ -123,6 +167,10 @@ class Peer {
     }
 
     return this._socket
+  }
+
+  get connectionAttempts () {
+    return this._connectionAttempts
   }
 
   async disconnect () {
@@ -135,6 +183,14 @@ class Peer {
     this._state = 'destroying'
     await this._socket.destroy()
     this._socketEventClose()
+  }
+
+  get hash () {
+    return this._hash
+  }
+
+  set hash (hash) {
+    this._hash = hash
   }
 
   _processMessage (message) {
@@ -156,7 +212,7 @@ class Peer {
     if (messageLength > 0) {
       payload = Buffer.alloc(messageLength)
       message.copy(payload, 0, 24)
-      let checksumVerification = this._calculateChecksum(command, payload)
+      let checksumVerification = Buffer.from(this._calculateChecksum(command, payload))
 
       // Check the checksum for verification
       if (checksum !== checksumVerification.readUInt32BE(0)) {
@@ -168,13 +224,9 @@ class Peer {
     }
 
     if (payload !== null) {
-      this.emit('message', {
+      this._eventEmitter.emit('message', {
         peer: this,
         command: command,
-        data: payload
-      })
-      this.emit(`${command}_message`, {
-        peer: this,
         data: payload
       })
     }
@@ -192,8 +244,8 @@ class Peer {
   async send (command, data = null) {
     if (data === null) {
       data = Buffer.alloc(0)
-    } else if (Array.isArray(data)) {
-      data = Buffer.alloc(data)
+    } else {
+      data = Buffer.from(data)
     }
 
     let out = Buffer.alloc(data.length + 24)
@@ -204,7 +256,9 @@ class Peer {
     for (let i = 0; i < 12; i++) {
       let charCode = 0
 
-      if (i < command.length) command.charCodeAt(i)
+      if (i < command.length) {
+        charCode = command.charCodeAt(i)
+      }
 
       out.writeUInt8(charCode, i + 4)
     }
@@ -213,7 +267,9 @@ class Peer {
     out.writeUInt32LE(data.length, 16)
 
     // Generate our checksum for this message
-    let checksum = this._calculateChecksum(command, data)
+    let checksum = Buffer.from(this._calculateChecksum(command, data))
+
+    // Copy our checksum and data into the outgoing buffer
     checksum.copy(out, 20)
     data.copy(out, 24)
 
@@ -222,6 +278,7 @@ class Peer {
 
       return true
     } catch (err) {
+      console.error(err)
       return false
     }
   }
@@ -231,13 +288,63 @@ class Peer {
   }
 }
 
-class Self {
+class Node {
   constructor (host, header = 0xA27CC1A2, bufferSize = 10485760) {
     this._host = host
     this._header = header
     this._bufferSize = bufferSize
 
     this._server = null
+
+    this._peerList = {}
+
+    this._eventEmitter = new EventEmitter()
+  }
+
+  _peerConnection (socket) {
+    // Here is the processing for when a connection is made in
+    let peerHash = crypto.createHash('md5').update((new Date() / 1).toString()).digest('hex')
+
+    let remoteHost = socket.address()
+
+    let peer = new Peer(new Host(remoteHost.address, remoteHost.port))
+    peer.hash = peerHash
+
+    this._peerList[peerHash] = peer
+
+    peer.connect(socket)
+
+    peer.on('message', (data) => {
+      // Forward this peer's message on to the Node server itself and its listeners
+      this._eventEmitter('message', data)
+    })
+
+    peer.on('end', () => {
+      // Just delete the peer connection, it will reconnect if it wants to
+      delete this._peerList[peerHash]
+    })
+
+    peer.on('error', () => {
+      // Just delete the peer connection, it will reconnect if it wants to
+      delete this._peerList[peerHash]
+    })
+
+    this._eventEmitter.emit('peerConnected', {
+      peer: peer,
+      peerHash: peerHash,
+      remoteHost: remoteHost
+    })
+  }
+
+  broadcast (command, data) {
+    console.log(this._peerList)
+
+    if (Object.keys(this._peerList).length > 0) {
+      for (let peerHash in this._peerList) {
+        console.log(peerHash)
+        this._peerList[peerHash].send(command, data)
+      }
+    }
   }
 
   listen () {
@@ -246,17 +353,23 @@ class Self {
     this._inCursor = 0
 
     if (this._server === null) {
-      let server = net.createServer((socket) => {
-        // Here is the processing for when a connection is made in
+      this._server = net.createServer(this._peerConnection.bind(this))
+
+      this._server.listen(this._host.port, () => {
+        console.log('I am now listening...')
       })
-
-      server.on('data', this._socketEventData.bind(this))
-      server.on('error', this._socketEventError.bind(this))
-
-      this._server.listen()
     }
 
     return this._socket
+  }
+
+  /**
+   * Attach to a peer event
+   * @param {String} event - Event string on which to attach
+   * @param {Function} callback - Function to execute when event is emitted
+   */
+  on (event, callback) {
+    this._eventEmitter.on(event, callback)
   }
 
   get port () {
@@ -266,4 +379,4 @@ class Self {
 
 exports.Host = Host
 exports.Peer = Peer
-exports.Self = Self
+exports.Node = Node
