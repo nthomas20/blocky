@@ -4,6 +4,7 @@
 // https://www.npmjs.com/package/promise-socket
 
 const crypto = require('crypto')
+const keypair = require('keypair')
 const net = require('net')
 const PromiseSocket = require('promise-socket')
 const EventEmitter = require('events')
@@ -58,6 +59,8 @@ class Peer {
     this._socket = null
     this._hash = null
     this._connectionAttempts = 0
+    this._keypair = null
+    this._remotePublicKey = null
 
     this._eventEmitter = new EventEmitter()
   }
@@ -146,24 +149,27 @@ class Peer {
     this._eventEmitter.emit('close', { peer: this, err: err })
   }
 
-  connect (socket = null) {
+  async connect (socket = null) {
     this._inBuffer = Buffer.alloc(this._bufferSize)
     this._inCursor = 0
 
     if (this._socket === null) {
       if (socket === null) {
-        console.debug('Creating new outgoing connection...')
         this._state = 'connecting'
         socket = net.createConnection(this._host.port, this._host.address, this._socketEventConnect.bind(this))
       } else {
         this._state = 'connected'
-        console.debug('Using provided existing socket connection...')
       }
 
       socket.on('data', this._socketEventData.bind(this))
       socket.on('error', this._socketEventError.bind(this))
 
       this._socket = new PromiseSocket(socket)
+
+      // If we have a keypair, then let's negotiate
+      if (this.keypair !== null) {
+        await this.send('SECURE', this.keypair.public)
+      }
     }
 
     return this._socket
@@ -185,12 +191,24 @@ class Peer {
     this._socketEventClose()
   }
 
+  generateKeypair () {
+    if (this.state === null) {
+      this._keypair = keypair()
+    } else {
+      throw new Error('Cannot generate keypair after connection')
+    }
+  }
+
   get hash () {
     return this._hash
   }
 
   set hash (hash) {
     this._hash = hash
+  }
+
+  get keypair () {
+    return this._keypair
   }
 
   _processMessage (message) {
@@ -224,11 +242,21 @@ class Peer {
     }
 
     if (payload !== null) {
-      this._eventEmitter.emit('message', {
-        peer: this,
-        command: command,
-        data: payload
-      })
+      // If our command is SECURE, then do not send an event and manage the remote public key here
+      if (command === 'SECURE') {
+        this._remotePublicKey = payload.toString()
+      } else {
+        // Do we need to decrypt the payload?
+        if (this._remotePublicKey !== null) {
+          payload = crypto.publicDecrypt(this._remotePublicKey, payload)
+        }
+
+        this._eventEmitter.emit('message', {
+          peer: this,
+          command: command,
+          data: payload
+        })
+      }
     }
   }
 
@@ -246,6 +274,11 @@ class Peer {
       data = Buffer.alloc(0)
     } else {
       data = Buffer.from(data)
+    }
+
+    // If we're not sending public key and we have a private key and remote public key, then encrypt the data
+    if (command !== 'SECURE' && this.keypair !== null && this._remotePublicKey !== null) {
+      data = crypto.privateEncrypt(this.keypair.private, data)
     }
 
     let out = Buffer.alloc(data.length + 24)
@@ -278,7 +311,6 @@ class Peer {
 
       return true
     } catch (err) {
-      console.error(err)
       return false
     }
   }
@@ -296,6 +328,8 @@ class Node {
 
     this._server = null
 
+    this._keypair = keypair()
+
     this._peerList = {}
 
     this._eventEmitter = new EventEmitter()
@@ -309,6 +343,7 @@ class Node {
 
     let peer = new Peer(new Host(remoteHost.address, remoteHost.port))
     peer.hash = peerHash
+    peer._keypair = this._keypair
 
     this._peerList[peerHash] = peer
 
@@ -337,14 +372,15 @@ class Node {
   }
 
   broadcast (command, data) {
-    console.log(this._peerList)
-
     if (Object.keys(this._peerList).length > 0) {
       for (let peerHash in this._peerList) {
-        console.log(peerHash)
         this._peerList[peerHash].send(command, data)
       }
     }
+  }
+
+  get keypair () {
+    return this._keypair
   }
 
   listen () {
@@ -356,7 +392,8 @@ class Node {
       this._server = net.createServer(this._peerConnection.bind(this))
 
       this._server.listen(this._host.port, () => {
-        console.log('I am now listening...')
+        // Emit an event saying that the node is listening, #magic
+        this._eventEmitter.emit('nodeListening')
       })
     }
 

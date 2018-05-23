@@ -7,7 +7,7 @@ async function run () {
   let Node = new p2p.Node(new p2p.Host('localhost', 3000))
 
   Node.on('peerConnected', (data) => {
-    console.log(data.peerHash)
+    console.log('Peer connected', data.peerHash)
   })
 
   setTimeout(() => {

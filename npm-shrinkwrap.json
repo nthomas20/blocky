@@ -1027,6 +1027,9 @@
         "array-includes": "^3.0.3"
       }
     },
+    "keypair": {
+      "version": "1.0.1"
+    },
     "klaw": {
       "version": "2.0.0",
       "dev": true,

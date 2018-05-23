@@ -6,6 +6,8 @@ const {promisify} = require('util')
 async function run () {
   let Peer = new p2p.Peer(new p2p.Host('127.0.0.1', 3000))
 
+  Peer.generateKeypair()
+
   Peer.on('connect', () => {
     console.log('CONNECTED!')
   })
