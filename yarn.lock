@@ -1264,6 +1264,13 @@ path-type@^2.0.0:
   dependencies:
     pify "^2.0.0"
 
+peer-node@^0.0.4:
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/peer-node/-/peer-node-0.0.4.tgz#0020419961174b0faa9adfff71904eb52de17ed7"
+  dependencies:
+    keypair "^1.0.1"
+    promise-socket "^3.1.1"
+
 pify@^2.0.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/pify/-/pify-2.3.0.tgz#ed141a6ac043a849ea588498e7dca8b15330e90c"
@@ -1341,6 +1348,12 @@ promise-readable@^3.1.5:
 promise-socket@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/promise-socket/-/promise-socket-3.1.0.tgz#b49c8a75c95694bdf2924f0d7b2f2588f4cb9817"
+  dependencies:
+    promise-duplex "^3.0.3"
+
+promise-socket@^3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/promise-socket/-/promise-socket-3.1.1.tgz#12797b0152acce35a0a5a963c1fa24be41af3f8e"
   dependencies:
     promise-duplex "^3.0.3"
 

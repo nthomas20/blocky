@@ -1368,6 +1368,21 @@
         "pify": "^2.0.0"
       }
     },
+    "peer-node": {
+      "version": "0.0.4",
+      "requires": {
+        "keypair": "^1.0.1",
+        "promise-socket": "^3.1.1"
+      },
+      "dependencies": {
+        "promise-socket": {
+          "version": "3.1.1",
+          "requires": {
+            "promise-duplex": "^3.0.3"
+          }
+        }
+      }
+    },
     "pify": {
       "version": "2.3.0",
       "dev": true
