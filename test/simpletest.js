@@ -1,10 +1,10 @@
 'use strict'
 
-const tc = require('../src/simplechain')
+const tc = require('../src/Blockchain/simplechain')
 const {promisify} = require('util')
 
 async function run () {
-  let chain = new tc.Chain('nathan')
+  let chain = new tc.Chain('data/simple')
   await chain.initialize()
 
   await chain.add(new tc.Block({data: 'more data'}))

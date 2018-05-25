@@ -149,7 +149,7 @@ class Block {
         hash: blockData[0]['hash'],
         previousHash: blockData[0]['previousHash'],
         length: blockData[0]['length'],
-        nonce: blockData[0]['nonce'],
+        entropy: blockData[0]['entropy'],
         timestamp: blockData[0]['timestamp']
       }
     }
@@ -247,7 +247,7 @@ class Chain {
       this._memberFIDX = await sqlite.open(`${this.path}/${this.name}.m.f.idx.db`, { Promise })
 
       // Initialize block table
-      await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
+      await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, entropy INTEGER, timestamp INTEGER)`)
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
