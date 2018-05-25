@@ -103,6 +103,12 @@ class Transaction {
       to: this.to,
       timestamp: this.timestamp
     })
+
+    this._familiarHash = new ObjectHash().hash({
+      data: this.data,
+      from: this.from,
+      to: this.to
+    })
   }
 
   /**
@@ -111,6 +117,10 @@ class Transaction {
    */
   get hash () {
     return this._hash
+  }
+
+  get familiarHash () {
+    return this._familiarHash
   }
 }
 
@@ -132,6 +142,7 @@ class Block {
     this._length = 0
     this._hash = null
     this._transactionHashArray = []
+    this._transactionFamiliarHashArray = []
     this.previousHash = null
     this._entropy = 0
 
@@ -183,6 +194,7 @@ class Block {
       await this._block.addTransactionToBlock(transaction, this.length)
 
       this._transactionHashArray.push(transaction.hash)
+      this._transactionFamiliarHashArray.push(transaction.familiarHash)
       this._length++
 
       return true
@@ -225,6 +237,11 @@ class Block {
    */
   async commit () {
     let success = await this._block.commit(this.metaData)
+
+    // Remove transactions in this block from the chain's pending pool
+    for (let familiarHash of this._transactionFamiliarHashArray) {
+      this._metaChain._pendingPool.splice(this._metaChain._pendingPool.indexOf(familiarHash), 1)
+    }
 
     return success
   }
@@ -365,6 +382,7 @@ class Chain {
     }, options)
 
     this._transactionPool = []
+    this._pendingPool = []
     this.storage = storage
     this._chain = new this.storage.Chain(name)
     this._eventEmitter = new EventEmitter()
@@ -406,6 +424,11 @@ class Chain {
     this.queue._queue.on('end', () => {
       this._eventEmitter.emit('blockCommitQueueEmpty', true)
     })
+  }
+
+  _isPendingTransaction (transaction) {
+    // Generate sub-hash of transaction to prevent duplicate transactions from being accepted
+    return this._pendingPool.includes(transaction.familiarHash)
   }
 
   async _loadChain (reload = true) {
@@ -454,8 +477,15 @@ class Chain {
    * @returns {Boolean} Status of add operation
    */
   async add (transaction) {
+    if (this._isPendingTransaction(transaction) === true) {
+      return false
+    }
+
     // Add the transaction
     this._transactionPool.push(transaction)
+
+    // Add the familiar hash to prevent duplicates
+    this._pendingPool.push(transaction.familiarHash)
 
     // If it's time to push transactions into a block, then let's do it!
     if (this._transactionPool.length >= this.options.maxBlockTransactions) {
