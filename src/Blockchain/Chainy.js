@@ -37,10 +37,10 @@ class Queue {
   /**
    * Push a block on to the Chain queue for ordered processing
    * @param {Object} block - Reference to the Block Object
-   * @param {Number} randomNonce - Starting random nonce
+   * @param {Number} randomEntropy - Starting random entropy
    * @param {String} powHashPrefix - Hex string prefix for acceptable proof of work calculation
    */
-  async push (block, randomNonce, powHashPrefix) {
+  async push (block, randomEntropy, powHashPrefix) {
     this._queue.push(() => {
       return new Promise(async (resolve, reject) => {
         // Grab the previous hash
@@ -55,7 +55,7 @@ class Queue {
           previousHash = await previousBlock.calculateHash(true)
         }
 
-        await block.build(previousHash, randomNonce, powHashPrefix)
+        await block.build(previousHash, randomEntropy, powHashPrefix)
 
         await block.commit()
 
@@ -133,7 +133,7 @@ class Block {
     this._hash = null
     this._transactionHashArray = []
     this.previousHash = null
-    this._nonce = 0
+    this._entropy = 0
 
     if (timestamp === null) {
       this.timestamp = new Date() / 1
@@ -164,8 +164,8 @@ class Block {
         if (this.hash.slice(0, powHashPrefix.length) === powHashPrefix) {
           break
         } else {
-          // Increase the nonce and rebuild the block hash
-          this.nonce = this.nonce + 1
+          // Increase the entropy and rebuild the block hash
+          this.entropy = this.entropy + 1
         }
       }
     } else {
@@ -193,7 +193,7 @@ class Block {
 
   /**
    * Get the block's meta data
-   * @returns {Array} Array containing [index, hash, previous hash, length, nonce, timestamp] of the block
+   * @returns {Array} Array containing [index, hash, previous hash, length, entropy, timestamp] of the block
    */
   get metaData () {
     return [
@@ -201,7 +201,7 @@ class Block {
       this.hash,
       this.previousHash,
       this.length,
-      this.nonce,
+      this.entropy,
       this.timestamp
     ]
   }
@@ -209,12 +209,12 @@ class Block {
   /**
    * Build the block and calculate its final hash
    * @param {String} previousHash - Hash value of the previous block
-   * @param {Number} nonce - Numeric nonce value
+   * @param {Number} entropy - Numeric entropy value
    * @param {String} [powHashPrefix=null] - Hash prefix to use for proof of work
    */
-  async build (previousHash, nonce, powHashPrefix = null) {
+  async build (previousHash, entropy, powHashPrefix = null) {
     this.previousHash = previousHash
-    this.nonce = nonce
+    this.entropy = entropy
 
     await this._proofOfWork(powHashPrefix)
   }
@@ -309,7 +309,7 @@ class Block {
       this._hash = blockData['hash']
       this.previousHash = blockData['previousHash']
       this._length = blockData['length']
-      this.nonce = blockData['nonce']
+      this.entropy = blockData['entropy']
       this.timestamp = blockData['timestamp']
 
       await this._loadTransactionHashes()
@@ -321,19 +321,19 @@ class Block {
   }
 
   /**
-   * Retrieve the nonce of the block
-   * @returns {Number} The nonce value of the hash
+   * Retrieve the entropy of the block
+   * @returns {Number} The entropy value of the hash
    */
-  get nonce () {
-    return this._nonce
+  get entropy () {
+    return this._entropy
   }
 
   /**
-   * Set the nonce of the block
-   * @param {Number} nonce - The nonce value of the hash
+   * Set the entropy of the block
+   * @param {Number} entropy - The entropy value of the hash
    */
-  set nonce (nonce) {
-    this._nonce = nonce
+  set entropy (entropy) {
+    this._entropy = entropy
   }
 }
 
@@ -347,16 +347,17 @@ class Chain {
    * @constructor
    * @param {String} name - Path and name of the chain
    * @param {Object} storage - Storage Module (do not instantiate)
-   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxRandomNonce, maxBlockTransactions, BlockQueue = (timeout, autostart))
+   * @param {Object} [network=null] = Network Module (do not instantiate. Must be compatible with peer-node package)
+   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxrandomEntropy, maxBlockTransactions, BlockQueue = (timeout, autostart))
    * @returns {Object} Chain Object Instance
    */
-  constructor (name, storage, options = {}) {
+  constructor (name, storage, network = null, options = {}) {
     this.name = name
 
     // Set my defaults
     this.options = Object.assign({
       powHashPrefix: null,
-      maxRandomNonce: 876348467,
+      maxrandomEntropy: 876348467,
       maxBlockTransactions: 1000,
       BlockQueue: {
         autostart: true
@@ -380,7 +381,7 @@ class Chain {
   }
 
   async _finalizeBlock () {
-    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxRandomNonce)), this.options.powHashPrefix)
+    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxrandomEntropy)), this.options.powHashPrefix)
 
     this._eventEmitter.emit('blockSubmit', this.workingBlock.index)
 
