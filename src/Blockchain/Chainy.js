@@ -77,9 +77,10 @@ class Transaction {
    * @param {Number} [timestamp=null] - Number to force timestamp into a transaction. Use with care
    * @param {String} [from=null] - The origin member of the transaction
    * @param {String} [to=null] - The destination member of the transaction
+   * @param {String} [nom=0] - A counter transfer. NOM = Numeric Operation Metric
    * @returns {Object} Transaction Instance
    */
-  constructor (data, from = null, to = null, timestamp = null) {
+  constructor (data, from = null, to = null, nom = 0, timestamp = null) {
     this.data = data
     if (timestamp === null) {
       this.timestamp = new Date() / 1
@@ -89,6 +90,11 @@ class Transaction {
 
     this.from = from
     this.to = to
+    this.nom = nom
+
+    if (this.nom > 0 && this.from === null && this.to === null) {
+      throw new Error('Cannot transfer noms without valid to/from account IDs')
+    }
 
     this.calculateHash()
   }
@@ -101,13 +107,15 @@ class Transaction {
       data: this.data,
       from: this.from,
       to: this.to,
+      nom: this.nom,
       timestamp: this.timestamp
     })
 
     this._familiarHash = new ObjectHash().hash({
       data: this.data,
       from: this.from,
-      to: this.to
+      to: this.to,
+      nom: this.nom
     })
   }
 
