@@ -67,7 +67,7 @@ async function run () {
   })
 
   await chain.initialize(false) // false means don't load an existing chain, default = true
-  tx1 = new Blocky.Blockchain.Chainy.Transaction('my data 1')
+  tx1 = new Blocky.Blockchain.Chainy.Transaction('my data 1', 'a', 'b', 5)
   await chain.add(tx1)
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 2'))
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 3'))

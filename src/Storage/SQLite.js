@@ -78,8 +78,8 @@ class Block {
       let hashArray = await this.loadTransactionHashes(true)
 
       for (let t in hashArray) {
-        let from = hashArray[t]['from']
-        let to = hashArray[t]['to']
+        let from = hashArray[t]['f']
+        let to = hashArray[t]['t']
         let nom = hashArray[t]['nom']
 
         await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index, t])
