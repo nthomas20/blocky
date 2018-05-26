@@ -38,9 +38,10 @@ class Block {
   async addTransactionToBlock (transaction, length) {
     if (this._block !== null) {
       try {
-        await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?, ?, ?)`, [
+        await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?, ?, ?, ?)`, [
           length,
           transaction.hash, transaction.from, transaction.to,
+          transaction.nom,
           transaction.timestamp,
           JSON.stringify(transaction.data)
         ])
@@ -77,12 +78,13 @@ class Block {
       let hashArray = await this.loadTransactionHashes(true)
 
       for (let t in hashArray) {
-        let from = hashArray[t]['from']
-        let to = hashArray[t]['to']
+        let from = hashArray[t]['f']
+        let to = hashArray[t]['t']
+        let nom = hashArray[t]['nom']
 
-        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, this.index, t])
-        await this._chain._chain._memberFIDX.run('INSERT INTO member VALUES (?, ?, ?, ?)', [hashArray[t]['hash'], from, to, this.index])
-        await this._chain._chain._memberTIDX.run('INSERT INTO member VALUES (?, ?, ?, ?)', [hashArray[t]['hash'], from, to, this.index])
+        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index, t])
+        await this._chain._chain._memberFIDX.run('INSERT INTO member VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index])
+        await this._chain._chain._memberTIDX.run('INSERT INTO member VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index])
       }
 
       await this.close()
@@ -123,7 +125,7 @@ class Block {
 
         await this.delete()
 
-        await this._block.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, f VARCHAR, t VARCHAR, timestamp INTEGER, data VARCHAR)`)
+        await this._block.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, f VARCHAR, t VARCHAR, nom FLOAT, timestamp INTEGER, data VARCHAR)`)
         await this._block.run(`CREATE UNIQUE INDEX idx_b_h_${this.index} ON block_${this.index} (hash)`)
       } catch (err) {
         console.error(err)
@@ -251,12 +253,12 @@ class Chain {
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
-      await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, f VARCHAR, t VARCHAR, block INTEGER, i INTEGER)`)
+      await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, f VARCHAR, t VARCHAR, nom FLOAT, block INTEGER, i INTEGER)`)
 
-      await this._memberFIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, block INTEGER)`)
+      await this._memberFIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, nom FLOAT, block INTEGER)`)
       await this._memberFIDX.run(`CREATE INDEX IF NOT EXISTS idx_t_f ON member (f)`)
 
-      await this._memberTIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, block INTEGER)`)
+      await this._memberTIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, nom FLOAT, block INTEGER)`)
       await this._memberTIDX.run(`CREATE INDEX IF NOT EXISTS idx_t_t ON member (t)`)
     } catch (err) {
       return false
