@@ -35,12 +35,16 @@ async function end () {
   // Since blocks are written asynchronously, premature closure of tables will prevent full block writes
   await chain._chain._chain.close()
   await chain._chain._transIDX.close()
+  await chain._chain._memberFIDX.close()
+  await chain._chain._memberTIDX.close()
+
+  await chain.delete()
 }
 
 let endAsync = promisify(end)
 
 async function run () {
-  chain = new Blocky.Blockchain.Chainy.Chain('data/chainy', Blocky.Storage.SQLite, null, {
+  chain = new Blocky.Blockchain.Chainy.Chain('data/fork/chainy', Blocky.Storage.SQLite, null, {
     powHashPrefix: '000',
     maxBlockTransactions: 3,
     transactionPrefix: 'tX'
@@ -76,6 +80,8 @@ async function run () {
   await chain.add(tx2)
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 5'))
   await chain.add(new Blocky.Blockchain.Chainy.Transaction('my data 6'))
+
+  console.log('made all the transactions')
 
   complete = true
 }

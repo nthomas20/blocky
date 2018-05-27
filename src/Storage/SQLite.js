@@ -221,25 +221,35 @@ class Chain {
     return finalRow
   }
 
+  delete () {
+    try {
+      // Clear out the chain's data files
+      if (fs.existsSync(this.path)) {
+        fs.readdirSync(this.path).forEach((file, index) => {
+          if (file.indexOf(this.name) !== -1) {
+            fs.unlinkSync(path.join(this.path, file))
+          }
+        })
+      }
+    } catch (err) {
+      return false
+    }
+  }
+
   /**
    * Initialize the chain
    * @param {Boolean} [reload=true] - Reload the existing data. Set to false to delete all chain data
    * @returns {Boolean} Status of initialization
    */
   async initialize (reload = true) {
+    // Check to see if the path fully exists
+    if (fs.existsSync(this.path) === false) {
+      // Create the full path
+      fs.mkdirSync(this.path)
+    }
+
     if (reload === false) {
-      try {
-        // Clear out the chain's data files
-        if (fs.existsSync(this.path)) {
-          fs.readdirSync(this.path).forEach((file, index) => {
-            if (file.indexOf(this.name) !== -1) {
-              fs.unlinkSync(path.join(this.path, file))
-            }
-          })
-        }
-      } catch (err) {
-        return false
-      }
+      this.delete()
     }
 
     try {

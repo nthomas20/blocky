@@ -546,6 +546,14 @@ class Chain {
   }
 
   /**
+   * Delete the chain
+   */
+  delete () {
+    // Call the storage engine to delete the chain
+    this._chain.delete()
+  }
+
+  /**
    * Initialize the chain
    * @param {Boolean} [reload=true] Reload an existing chain. Set to false to clear and start fresh
    * @returns {Boolean} Status of initialization
