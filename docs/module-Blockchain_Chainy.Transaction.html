@@ -29,7 +29,7 @@
 <header>
     
         <h2><span class="attribs"><span class="type-signature"></span></span>
-            <span class="ancestors"><a href="module-Blockchain_Chainy.html">Blockchain/Chainy</a>.</span>Transaction<span class="signature">(data, timestamp<span class="signature-attributes">opt</span>)</span><span class="type-signature"></span></h2>
+            <span class="ancestors"><a href="module-Blockchain_Chainy.html">Blockchain/Chainy</a>.</span>Transaction<span class="signature">(data, timestamp<span class="signature-attributes">opt</span>, from<span class="signature-attributes">opt</span>, to<span class="signature-attributes">opt</span>, nom<span class="signature-attributes">opt</span>)</span><span class="type-signature"></span></h2>
         
             <div class="class-description"><p>Transaction to be pushed into a block for processing</p></div>
         
@@ -46,7 +46,7 @@
     
 
     
-    <h4 class="name" id="Transaction"><span class="type-signature"></span>new Transaction<span class="signature">(data, timestamp<span class="signature-attributes">opt</span>)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="Transaction"><span class="type-signature"></span>new Transaction<span class="signature">(data, timestamp<span class="signature-attributes">opt</span>, from<span class="signature-attributes">opt</span>, to<span class="signature-attributes">opt</span>, nom<span class="signature-attributes">opt</span>)</span><span class="type-signature"></span></h4>
     
 
     
@@ -97,9 +97,6 @@
             
                 
 <span class="param-type">String</span>
-|
-
-<span class="param-type">Object</span>
 
 
             
@@ -164,6 +161,123 @@
         </tr>
 
     
+
+        <tr>
+            
+                <td class="name"><code>from</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    null
+                
+                </td>
+            
+
+            <td class="description last"><p>The origin member of the transaction</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>to</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    null
+                
+                </td>
+            
+
+            <td class="description last"><p>The destination member of the transaction</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>nom</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    0
+                
+                </td>
+            
+
+            <td class="description last"><p>A counter transfer. NOM = Numeric Operation Metric</p></td>
+        </tr>
+
+    
     </tbody>
 </table>
 
@@ -201,7 +315,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line76">line 76</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line73">line 73</a>
     </li></ul></dd>
     
 
@@ -293,7 +407,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line108">line 108</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line126">line 126</a>
     </li></ul></dd>
     
 
@@ -373,7 +487,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line97">line 97</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line105">line 105</a>
     </li></ul></dd>
     
 
@@ -423,7 +537,7 @@
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 20 2018 06:04:31 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 27 2018 09:10:23 GMT-0400 (DST)
 </footer>
 
 <script> prettyPrint(); </script>

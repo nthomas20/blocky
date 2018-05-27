@@ -130,6 +130,16 @@ class Transaction {
   get familiarHash () {
     return this._familiarHash
   }
+
+  get prefix () {
+    return this._prefix
+  }
+
+  set prefix (prefix) {
+    this._prefix = prefix
+
+    this._hash = `${prefix}${this._hash}`
+  }
 }
 
 /**
@@ -195,10 +205,15 @@ class Block {
   /**
    * Add a transaction into the Block
    * @param {Object} transaction - Reference to the Transaction Object
+   * @param {String} [prefix=''] - Prefix the transaction hash with a short string
    * @returns {Boolean} Status of the add operation
    */
-  async add (transaction) {
+  async add (transaction, prefix = '') {
     try {
+      if (prefix !== '') {
+        transaction.prefix = prefix
+      }
+
       await this._block.addTransactionToBlock(transaction, this.length)
 
       this._transactionHashArray.push(transaction.hash)
@@ -373,7 +388,7 @@ class Chain {
    * @param {String} name - Path and name of the chain
    * @param {Object} storage - Storage Module (do not instantiate)
    * @param {Object} [network=null] = Network Module (do not instantiate. Must be compatible with peer-node package)
-   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxrandomEntropy, maxBlockTransactions, BlockQueue = (timeout, autostart))
+   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxrandomEntropy, maxBlockTransactions, transactionPrefix, BlockQueue = (timeout, autostart))
    * @returns {Object} Chain Object Instance
    */
   constructor (name, storage, network = null, options = {}) {
@@ -384,6 +399,7 @@ class Chain {
       powHashPrefix: null,
       maxrandomEntropy: 876348467,
       maxBlockTransactions: 1000,
+      transactionPrefix: '',
       BlockQueue: {
         autostart: true
       }
@@ -466,7 +482,7 @@ class Chain {
     while (this._transactionPool.length > 0 && count < this.options.maxBlockTransactions) {
       transaction = this._transactionPool.shift()
 
-      if (await this.workingBlock.add(transaction) === false) {
+      if (await this.workingBlock.add(transaction, this.options.transactionPrefix) === false) {
         return
       }
 

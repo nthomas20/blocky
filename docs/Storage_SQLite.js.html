@@ -65,12 +65,18 @@ class Block {
    */
   async addTransactionToBlock (transaction, length) {
     if (this._block !== null) {
-      await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?)`, [
-        length,
-        transaction.hash,
-        transaction.timestamp,
-        JSON.stringify(transaction.data)
-      ])
+      try {
+        await this._block.run(`INSERT INTO block_${this.index} VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+          length,
+          transaction.hash, transaction.from, transaction.to,
+          transaction.nom,
+          transaction.timestamp,
+          JSON.stringify(transaction.data)
+        ])
+      } catch (err) {
+        console.error(err)
+        return false
+      }
 
       return true
     }
@@ -97,10 +103,16 @@ class Block {
     try {
       await this._chain._chain._chain.run('INSERT INTO block VALUES (?, ?, ?, ?, ?, ?)', metaData)
 
-      let hashArray = await this.loadTransactionHashes()
+      let hashArray = await this.loadTransactionHashes(true)
 
       for (let t in hashArray) {
-        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?)', [hashArray[t], this.index, t])
+        let from = hashArray[t]['f']
+        let to = hashArray[t]['t']
+        let nom = hashArray[t]['nom']
+
+        await this._chain._chain._transIDX.run('INSERT INTO trans VALUES (?, ?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index, t])
+        await this._chain._chain._memberFIDX.run('INSERT INTO member VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index])
+        await this._chain._chain._memberTIDX.run('INSERT INTO member VALUES (?, ?, ?, ?, ?)', [hashArray[t]['hash'], from, to, nom, this.index])
       }
 
       await this.close()
@@ -141,9 +153,10 @@ class Block {
 
         await this.delete()
 
-        await this._block.run(`CREATE TABLE IF NOT EXISTS block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, timestamp INTEGER, data VARCHAR)`)
-        await this._block.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h_${this.index} ON block_${this.index} (hash)`)
+        await this._block.run(`CREATE TABLE block_${this.index} (i INTEGER PRIMARY KEY ASC, hash VARCHAR, f VARCHAR, t VARCHAR, nom FLOAT, timestamp INTEGER, data VARCHAR)`)
+        await this._block.run(`CREATE UNIQUE INDEX idx_b_h_${this.index} ON block_${this.index} (hash)`)
       } catch (err) {
+        console.error(err)
         return false
       }
     }
@@ -166,7 +179,7 @@ class Block {
         hash: blockData[0]['hash'],
         previousHash: blockData[0]['previousHash'],
         length: blockData[0]['length'],
-        nonce: blockData[0]['nonce'],
+        entropy: blockData[0]['entropy'],
         timestamp: blockData[0]['timestamp']
       }
     }
@@ -176,18 +189,23 @@ class Block {
 
   /**
    * Load Transaction Hashes from storage
+   * @param {Boolean} [allData=false] - Return all data
    * @returns {Array} Array of transaction hashes
    */
-  async loadTransactionHashes () {
+  async loadTransactionHashes (allData = false) {
     let hashArray = []
 
     if (this._block !== null) {
-      let hashRows = await this._block.all(`SELECT i, hash FROM block_${this.index} ORDER BY i ASC`)
+      let hashRows = await this._block.all(`SELECT * FROM block_${this.index} ORDER BY i ASC`)
 
       if (hashRows.length > 0) {
-        hashRows.forEach((row, i) => {
-          hashArray.push(row['hash'])
-        })
+        if (allData === false) {
+          hashRows.forEach((row, i) => {
+            hashArray.push(row['hash'])
+          })
+        } else {
+          hashArray = hashRows
+        }
       }
     }
 
@@ -199,7 +217,8 @@ class Block {
    */
   async open () {
     if (this._block === null) {
-      this._block = await sqlite.open(`${this.path}/b_${this.name}_${this.index}.db`, { Promise })
+      let paddedIndex = `00000000000${this.index}`.substring(this.index.toString().length)
+      this._block = await sqlite.open(`${this.path}/${this.name}.b_${paddedIndex}.db`, { Promise })
     }
   }
 }
@@ -254,18 +273,45 @@ class Chain {
     try {
       this._chain = await sqlite.open(`${this.path}/${this.name}.db`, { Promise })
       this._transIDX = await sqlite.open(`${this.path}/${this.name}.t.idx.db`, { Promise })
+      this._memberTIDX = await sqlite.open(`${this.path}/${this.name}.m.t.idx.db`, { Promise })
+      this._memberFIDX = await sqlite.open(`${this.path}/${this.name}.m.f.idx.db`, { Promise })
 
       // Initialize block table
-      await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, nonce INTEGER, timestamp INTEGER)`)
+      await this._chain.run(`CREATE TABLE IF NOT EXISTS block (i INTEGER PRIMARY KEY ASC, hash VARCHAR, previousHash VARCHAR, length INTEGER, entropy INTEGER, timestamp INTEGER)`)
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_h ON block (hash)`)
       await this._chain.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_b_ph ON block (previousHash)`)
 
-      await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, block INTEGER, i INTEGER)`)
+      await this._transIDX.run(`CREATE TABLE IF NOT EXISTS trans (hash VARCHAR PRIMARY KEY, f VARCHAR, t VARCHAR, nom FLOAT, block INTEGER, i INTEGER)`)
+
+      await this._memberFIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, nom FLOAT, block INTEGER)`)
+      await this._memberFIDX.run(`CREATE INDEX IF NOT EXISTS idx_t_f ON member (f)`)
+
+      await this._memberTIDX.run(`CREATE TABLE IF NOT EXISTS member (hash VARCHAR, f VARCHAR, t VARCHAR, nom FLOAT, block INTEGER)`)
+      await this._memberTIDX.run(`CREATE INDEX IF NOT EXISTS idx_t_t ON member (t)`)
     } catch (err) {
       return false
     }
 
     return true
+  }
+
+  /**
+   * Find Transaction metadata by id
+   * @param {String} transactionID - Transaction Hash value to locate
+   * @returns {Object} Transaction metadata
+   */
+  async findTransactionByHash (transactionHash) {
+    let transData = await this._transIDX.all(`SELECT * FROM trans WHERE hash = ? LIMIT 1`, [transactionHash])
+
+    return transData
+  }
+
+  /**
+   * Find Transaction metadata by author
+   * @param {String} transactionID - Transaction Hash value to locate
+   * @returns {Object} Transaction metadata
+   */
+  async findTransactionByMember (member, startPOS = 0, limit = 500) {
   }
 }
 
@@ -287,7 +333,7 @@ exports.Chain = Chain
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 20 2018 06:04:31 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 27 2018 09:10:23 GMT-0400 (DST)
 </footer>
 
 <script> prettyPrint(); </script>
