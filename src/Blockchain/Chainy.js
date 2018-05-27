@@ -406,7 +406,6 @@ class Chain {
    * @constructor
    * @param {String} name - Path and name of the chain
    * @param {Object} storage - Storage Module (do not instantiate)
-   * @param {Object} [network=null] - Network Module (do not instantiate. Must be compatible with peer-node package)
    * @param {Object} [options={}] - Configuration options for the Blockchain
    * @param {String} [options.powHashPrefix=null] Proof of Work Prefix value. Default indicates no proof of work necessary
    * @param {Number} [options.maxRandomEntropy=876348467] Maximum number to randomly select for entropy calculation starting point
@@ -417,7 +416,7 @@ class Chain {
    * @param {Boolean} [options.BlockQueue.autostart=true] Automatically start processing the queue when a block is submitted. Value is ignored when participating in peer network
    * @returns {Object} Chain Object Instance
    */
-  constructor (name, storage, network = null, options = {}) {
+  constructor (name, storage, options = {}) {
     this.name = name
 
     // Set my defaults

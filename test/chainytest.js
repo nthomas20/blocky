@@ -44,10 +44,10 @@ async function end () {
 let endAsync = promisify(end)
 
 async function run () {
-  chain = new Blocky.Blockchain.Chainy.Chain('data/fork/chainy', Blocky.Storage.SQLite, null, {
+  chain = new Blocky.Blockchain.Chainy.Chain('data/fork/chainy', Blocky.Storage.SQLite, {
     powHashPrefix: '000',
     maxBlockTransactions: 3,
-    transactionPrefix: 'tX'
+    transactionPrefix: 'x-'
   })
 
   chain.on('blockSubmit', (index) => {
