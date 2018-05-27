@@ -11,6 +11,7 @@
 const ObjectHash = require('node-object-hash')
 const queue = require('queue')
 const EventEmitter = require('events')
+const PeerNode = require('peer-node')
 
 // The queue is the block processor
 // Chain commits blocks into the queue for processing
@@ -417,7 +418,7 @@ class Chain {
    * @returns {Object} Chain Object Instance
    */
   constructor (name, storage, options = {}) {
-    this.name = name
+    this._name = name
 
     // Set my defaults
     this.options = Object.assign({
@@ -592,6 +593,13 @@ class Chain {
   }
 
   /**
+   * Get the name of the chain
+   */
+  get name () {
+    return this._name
+  }
+
+  /**
    * Attach to a chain event
    * @param {String} event - Event string on which to attach
    * @param {Function} callback - Function to execute when event is emitted
@@ -601,6 +609,90 @@ class Chain {
   }
 }
 
+/**
+ * Layer than manages communications to peer nodes with regards to blockchain activities
+ * @class
+ * @memberof module:Blockchain/Peery
+ */
+class Peery {
+  /**
+   *
+   * @param {String} name - The name of the chain to which this node will attach
+   * @param {String} role - The initial requested role of this node (peer may override if this host does not CREATE a new chain [ 'transact', 'validate', 'observe' ])
+   * @param {String} [forkID=null] - Specify an initial forkID. Default of blank will require peer node to specify initial fork
+   * @param {Number} [port=6477] - Specify the port on which to connect
+   */
+  constructor (name, role, primaryForkID = null, port = 6477) {
+    this._name = name
+    this._role = role
+    this._primaryForkID = primaryForkID
+    this._port = port
+
+    this._node = new PeerNode.Node(new PeerNode.Host('', this.port))
+    this._peers = []
+    this._chainForks = {}
+
+    this._eventEmitter = new EventEmitter()
+  }
+
+  async _initializeEvents () {
+    // Handle the block queue processing events
+    this._node.on('peerConnected', (data) => {
+      this._eventEmitter.emit('peerConnected', data)
+    })
+
+    this._node.on('')
+  }
+
+  async connectPeers (peers) {
+    for (let peerIP of peers) {
+      let peer = new PeerNode.Peer(new PeerNode.Host(peerIP, this.port))
+
+      peer.generateKeypair()
+
+      peer.on('connect', () => {
+        this._peers.push(peer)
+      })
+
+      peer.connect()
+    }
+  }
+
+  /**
+   * Start node in initial requested node
+   */
+  async start (initialPeers = []) {
+    // Connect to incoming peers
+    if (initialPeers.length > 0) {
+      await this.connectPeers(initialPeers)
+    }
+
+    this._node.listen()
+  }
+
+  /**
+   * Attach to a peer event
+   * @param {String} event - Event string on which to attach
+   * @param {Function} callback - Function to execute when event is emitted
+   */
+  on (event, callback) {
+    this._eventEmitter.on(event, callback)
+  }
+
+  get primaryForkID () {
+    return this._primaryForkID
+  }
+
+  get name () {
+    return this._name
+  }
+
+  get port () {
+    return this._port
+  }
+}
+
 exports.Transaction = Transaction
 exports.Block = Block
 exports.Chain = Chain
+exports.Peery = Peery
