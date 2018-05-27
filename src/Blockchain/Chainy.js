@@ -24,7 +24,7 @@ class Queue {
   /**
    * @constructor
    * @param {Object} chain - Reference to the Chain Object
-   * @param {Object} [options={}] - Queue Options (timeout=null, autostart=true). If setting autostart=false, you'll have to handle block processing on your own
+   * @param {Object} [options={}] - Configuration options for the Block queue processor. Passed through from Chain BlockQueue options
    * @returns {Object} Queue Instance
    */
   constructor (chain, options = {}) {
@@ -406,8 +406,15 @@ class Chain {
    * @constructor
    * @param {String} name - Path and name of the chain
    * @param {Object} storage - Storage Module (do not instantiate)
-   * @param {Object} [network=null] = Network Module (do not instantiate. Must be compatible with peer-node package)
-   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxrandomEntropy, maxBlockTransactions, transactionPrefix, BlockQueue = (timeout, autostart))
+   * @param {Object} [network=null] - Network Module (do not instantiate. Must be compatible with peer-node package)
+   * @param {Object} [options={}] - Configuration options for the Blockchain
+   * @param {String} [options.powHashPrefix=null] Proof of Work Prefix value. Default indicates no proof of work necessary
+   * @param {Number} [options.maxRandomEntropy=876348467] Maximum number to randomly select for entropy calculation starting point
+   * @param {Number} [options.maxBlockTransactions=1000] Maximum number of transactions to include in a block
+   * @param {String} [options.transactionPrefix=''] Short string to prefix onto transaction hashes (can help to identify transactions in a sea of hashes)
+   * @param {Object} [options.BlockQueue] Configuration options for the Block queue processor
+   * @param {Number} [options.BlockQueue.timeout=null] Maximum time to spend processing a block. Default is infinity, this is recommended
+   * @param {Boolean} [options.BlockQueue.autostart=true] Automatically start processing the queue when a block is submitted. Value is ignored when participating in peer network
    * @returns {Object} Chain Object Instance
    */
   constructor (name, storage, network = null, options = {}) {
@@ -416,7 +423,7 @@ class Chain {
     // Set my defaults
     this.options = Object.assign({
       powHashPrefix: null,
-      maxrandomEntropy: 876348467,
+      maxRandomEntropy: 876348467,
       maxBlockTransactions: 1000,
       transactionPrefix: '',
       BlockQueue: {
@@ -442,7 +449,7 @@ class Chain {
   }
 
   async _finalizeBlock () {
-    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxrandomEntropy)), this.options.powHashPrefix)
+    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxRandomEntropy)), this.options.powHashPrefix)
 
     this._eventEmitter.emit('blockSubmit', this.workingBlock.index)
 

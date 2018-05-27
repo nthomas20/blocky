@@ -192,7 +192,7 @@
                 </td>
             
 
-            <td class="description last"><p>= Network Module (do not instantiate. Must be compatible with peer-node package)</p></td>
+            <td class="description last"><p>Network Module (do not instantiate. Must be compatible with peer-node package)</p></td>
         </tr>
 
     
@@ -231,7 +231,338 @@
                 </td>
             
 
-            <td class="description last"><p>Options for the chain (powHashPrefix, maxrandomEntropy, maxBlockTransactions, transactionPrefix, BlockQueue = (timeout, autostart))</p></td>
+            <td class="description last"><p>Configuration options for the Blockchain</p>
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>powHashPrefix</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    null
+                
+                </td>
+            
+
+            <td class="description last"><p>Proof of Work Prefix value</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>maxRandomEntropy</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    876348467
+                
+                </td>
+            
+
+            <td class="description last"><p>Maximum number to randomly select for entropy calculation starting point</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>maxBlockTransactions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    1000
+                
+                </td>
+            
+
+            <td class="description last"><p>Maximum number of transactions to include in a block</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>transactionPrefix</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    ''
+                
+                </td>
+            
+
+            <td class="description last"><p>Short string to prefix onto transaction hashes (can help to identify transactions in a sea of hashes)</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>BlockQueue</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>Configuration options for the Block queue processor</p>
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>timeout</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    null
+                
+                </td>
+            
+
+            <td class="description last"><p>Maximum time to spend processing a block. Default is infinity, this is recommended</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>autostart</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Boolean</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    true
+                
+                </td>
+            
+
+            <td class="description last"><p>Automatically start processing the queue when a block is submitted. Value is ignored when participating in peer network</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
         </tr>
 
     
@@ -272,7 +603,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line385">line 385</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line404">line 404</a>
     </li></ul></dd>
     
 
@@ -364,7 +695,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line557">line 557</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line583">line 583</a>
     </li></ul></dd>
     
 
@@ -493,7 +824,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line503">line 503</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line529">line 529</a>
     </li></ul></dd>
     
 
@@ -670,7 +1001,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line527">line 527</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line553">line 553</a>
     </li></ul></dd>
     
 
@@ -850,7 +1181,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line566">line 566</a>
+        <a href="Blockchain_Chainy.js.html">Blockchain/Chainy.js</a>, <a href="Blockchain_Chainy.js.html#line592">line 592</a>
     </li></ul></dd>
     
 
@@ -900,7 +1231,7 @@
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 27 2018 09:10:23 GMT-0400 (DST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 27 2018 10:25:13 GMT-0400 (DST)
 </footer>
 
 <script> prettyPrint(); </script>
