@@ -94,9 +94,28 @@ class Transaction {
 
     if (this.nom > 0 && this.from === null && this.to === null) {
       throw new Error('Cannot transfer noms without valid to/from account IDs')
+    } else if (this.from !== null && this._isValidAccount(this.from) === false) {
+      throw new Error('Invalid from account ID')
+    } else if (this.to !== null && this._isValidAccount(this.to) === false) {
+      throw new Error('Invalid to account ID')
+    } else if (this.to !== null && this.from === null) {
+      throw new Error('Must specify from recipient')
+    } else if (this.to === null && this.from !== null) {
+      throw new Error('Must specify to recipient')
+    } else if (this.to !== null && this.to === this.from) {
+      throw new Error('Unable to transact between same account')
     }
 
     this.calculateHash()
+  }
+
+  _isValidAccount (accountID) {
+    // Validate the set hash value
+    if (accountID.match('[A-Fa-f0-9]{64}')) {
+      return true
+    }
+
+    return false
   }
 
   /**
