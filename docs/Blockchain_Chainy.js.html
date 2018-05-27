@@ -65,10 +65,10 @@ class Queue {
   /**
    * Push a block on to the Chain queue for ordered processing
    * @param {Object} block - Reference to the Block Object
-   * @param {Number} randomNonce - Starting random nonce
+   * @param {Number} randomEntropy - Starting random entropy
    * @param {String} powHashPrefix - Hex string prefix for acceptable proof of work calculation
    */
-  async push (block, randomNonce, powHashPrefix) {
+  async push (block, randomEntropy, powHashPrefix) {
     this._queue.push(() => {
       return new Promise(async (resolve, reject) => {
         // Grab the previous hash
@@ -83,12 +83,9 @@ class Queue {
           previousHash = await previousBlock.calculateHash(true)
         }
 
-        await block.build(previousHash, randomNonce, powHashPrefix)
+        await block.build(previousHash, randomEntropy, powHashPrefix)
 
         await block.commit()
-
-        // Clear the block's transactions from the chain
-        delete this.chain._transactionPool[block.index]
 
         return resolve(block.index)
       })
@@ -104,16 +101,27 @@ class Queue {
 class Transaction {
   /**
    *
-   * @param {String|Object} data - Data to be set into the Transaction
+   * @param {String} data - Data to be set into the Transaction
    * @param {Number} [timestamp=null] - Number to force timestamp into a transaction. Use with care
+   * @param {String} [from=null] - The origin member of the transaction
+   * @param {String} [to=null] - The destination member of the transaction
+   * @param {String} [nom=0] - A counter transfer. NOM = Numeric Operation Metric
    * @returns {Object} Transaction Instance
    */
-  constructor (data, timestamp = null) {
+  constructor (data, from = null, to = null, nom = 0, timestamp = null) {
     this.data = data
     if (timestamp === null) {
       this.timestamp = new Date() / 1
     } else {
       this.timestamp = timestamp
+    }
+
+    this.from = from
+    this.to = to
+    this.nom = nom
+
+    if (this.nom > 0 &amp;&amp; this.from === null &amp;&amp; this.to === null) {
+      throw new Error('Cannot transfer noms without valid to/from account IDs')
     }
 
     this.calculateHash()
@@ -125,7 +133,17 @@ class Transaction {
   calculateHash () {
     this._hash = new ObjectHash().hash({
       data: this.data,
+      from: this.from,
+      to: this.to,
+      nom: this.nom,
       timestamp: this.timestamp
+    })
+
+    this._familiarHash = new ObjectHash().hash({
+      data: this.data,
+      from: this.from,
+      to: this.to,
+      nom: this.nom
     })
   }
 
@@ -135,6 +153,20 @@ class Transaction {
    */
   get hash () {
     return this._hash
+  }
+
+  get familiarHash () {
+    return this._familiarHash
+  }
+
+  get prefix () {
+    return this._prefix
+  }
+
+  set prefix (prefix) {
+    this._prefix = prefix
+
+    this._hash = `${prefix}${this._hash}`
   }
 }
 
@@ -156,8 +188,9 @@ class Block {
     this._length = 0
     this._hash = null
     this._transactionHashArray = []
+    this._transactionFamiliarHashArray = []
     this.previousHash = null
-    this._nonce = 0
+    this._entropy = 0
 
     if (timestamp === null) {
       this.timestamp = new Date() / 1
@@ -188,8 +221,8 @@ class Block {
         if (this.hash.slice(0, powHashPrefix.length) === powHashPrefix) {
           break
         } else {
-          // Increase the nonce and rebuild the block hash
-          this.nonce = this.nonce + 1
+          // Increase the entropy and rebuild the block hash
+          this.entropy = this.entropy + 1
         }
       }
     } else {
@@ -200,13 +233,19 @@ class Block {
   /**
    * Add a transaction into the Block
    * @param {Object} transaction - Reference to the Transaction Object
+   * @param {String} [prefix=''] - Prefix the transaction hash with a short string
    * @returns {Boolean} Status of the add operation
    */
-  async add (transaction) {
+  async add (transaction, prefix = '') {
     try {
+      if (prefix !== '') {
+        transaction.prefix = prefix
+      }
+
       await this._block.addTransactionToBlock(transaction, this.length)
 
       this._transactionHashArray.push(transaction.hash)
+      this._transactionFamiliarHashArray.push(transaction.familiarHash)
       this._length++
 
       return true
@@ -217,7 +256,7 @@ class Block {
 
   /**
    * Get the block's meta data
-   * @returns {Array} Array containing [index, hash, previous hash, length, nonce, timestamp] of the block
+   * @returns {Array} Array containing [index, hash, previous hash, length, entropy, timestamp] of the block
    */
   get metaData () {
     return [
@@ -225,7 +264,7 @@ class Block {
       this.hash,
       this.previousHash,
       this.length,
-      this.nonce,
+      this.entropy,
       this.timestamp
     ]
   }
@@ -233,12 +272,12 @@ class Block {
   /**
    * Build the block and calculate its final hash
    * @param {String} previousHash - Hash value of the previous block
-   * @param {Number} nonce - Numeric nonce value
+   * @param {Number} entropy - Numeric entropy value
    * @param {String} [powHashPrefix=null] - Hash prefix to use for proof of work
    */
-  async build (previousHash, nonce, powHashPrefix = null) {
+  async build (previousHash, entropy, powHashPrefix = null) {
     this.previousHash = previousHash
-    this.nonce = nonce
+    this.entropy = entropy
 
     await this._proofOfWork(powHashPrefix)
   }
@@ -249,6 +288,11 @@ class Block {
    */
   async commit () {
     let success = await this._block.commit(this.metaData)
+
+    // Remove transactions in this block from the chain's pending pool
+    for (let familiarHash of this._transactionFamiliarHashArray) {
+      this._metaChain._pendingPool.splice(this._metaChain._pendingPool.indexOf(familiarHash), 1)
+    }
 
     return success
   }
@@ -333,7 +377,7 @@ class Block {
       this._hash = blockData['hash']
       this.previousHash = blockData['previousHash']
       this._length = blockData['length']
-      this.nonce = blockData['nonce']
+      this.entropy = blockData['entropy']
       this.timestamp = blockData['timestamp']
 
       await this._loadTransactionHashes()
@@ -345,19 +389,19 @@ class Block {
   }
 
   /**
-   * Retrieve the nonce of the block
-   * @returns {Number} The nonce value of the hash
+   * Retrieve the entropy of the block
+   * @returns {Number} The entropy value of the hash
    */
-  get nonce () {
-    return this._nonce
+  get entropy () {
+    return this._entropy
   }
 
   /**
-   * Set the nonce of the block
-   * @param {Number} nonce - The nonce value of the hash
+   * Set the entropy of the block
+   * @param {Number} entropy - The entropy value of the hash
    */
-  set nonce (nonce) {
-    this._nonce = nonce
+  set entropy (entropy) {
+    this._entropy = entropy
   }
 }
 
@@ -371,26 +415,30 @@ class Chain {
    * @constructor
    * @param {String} name - Path and name of the chain
    * @param {Object} storage - Storage Module (do not instantiate)
-   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxRandomNonce, maxBlockTransactions, BlockQueue = (timeout, autostart))
+   * @param {Object} [network=null] = Network Module (do not instantiate. Must be compatible with peer-node package)
+   * @param {Object} [options={}] - Options for the chain (powHashPrefix, maxrandomEntropy, maxBlockTransactions, transactionPrefix, BlockQueue = (timeout, autostart))
    * @returns {Object} Chain Object Instance
    */
-  constructor (name, storage, options = {}) {
+  constructor (name, storage, network = null, options = {}) {
     this.name = name
 
     // Set my defaults
     this.options = Object.assign({
       powHashPrefix: null,
-      maxRandomNonce: 876348467,
+      maxrandomEntropy: 876348467,
       maxBlockTransactions: 1000,
+      transactionPrefix: '',
       BlockQueue: {
         autostart: true
       }
     }, options)
 
-    this._transactionPool = {}
+    this._transactionPool = []
+    this._pendingPool = []
     this.storage = storage
     this._chain = new this.storage.Chain(name)
     this._eventEmitter = new EventEmitter()
+    this._length = 0
   }
 
   async _createNewBlock () {
@@ -403,7 +451,7 @@ class Chain {
   }
 
   async _finalizeBlock () {
-    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxRandomNonce)), this.options.powHashPrefix)
+    this.queue.push(this.workingBlock, Math.floor(Math.random() * Math.floor(this.options.maxrandomEntropy)), this.options.powHashPrefix)
 
     this._eventEmitter.emit('blockSubmit', this.workingBlock.index)
 
@@ -413,6 +461,7 @@ class Chain {
   async _initializeEvents () {
     // Handle the block queue processing events
     this.queue._queue.on('success', (result, job) => {
+      this._length++
       this._eventEmitter.emit('blockCommit', result, job)
     })
 
@@ -427,6 +476,11 @@ class Chain {
     this.queue._queue.on('end', () => {
       this._eventEmitter.emit('blockCommitQueueEmpty', true)
     })
+  }
+
+  _isPendingTransaction (transaction) {
+    // Generate sub-hash of transaction to prevent duplicate transactions from being accepted
+    return this._pendingPool.includes(transaction.familiarHash)
   }
 
   async _loadChain (reload = true) {
@@ -449,29 +503,45 @@ class Chain {
     return true
   }
 
+  async _processTransactionPool () {
+    let count = 0
+    let transaction
+
+    while (this._transactionPool.length > 0 &amp;&amp; count &lt; this.options.maxBlockTransactions) {
+      transaction = this._transactionPool.shift()
+
+      if (await this.workingBlock.add(transaction, this.options.transactionPrefix) === false) {
+        return
+      }
+
+      count++
+    }
+
+    // Create new block
+    await this._createNewBlock()
+
+    return true
+  }
+
   /**
    * Add a transaction into the current working block
    * @param {Object} transaction - Transaction Object to add to the block/chain
    * @returns {Boolean} Status of add operation
    */
   async add (transaction) {
-    if (this._transactionPool.hasOwnProperty(this.workingBlock.index) === false) {
-      this._transactionPool[this.workingBlock.index] = []
+    if (this._isPendingTransaction(transaction) === true) {
+      return false
     }
 
     // Add the transaction
-    this._transactionPool[this.workingBlock.index].push(transaction)
+    this._transactionPool.push(transaction)
+
+    // Add the familiar hash to prevent duplicates
+    this._pendingPool.push(transaction.familiarHash)
 
     // If it's time to push transactions into a block, then let's do it!
-    if (this._transactionPool[this.workingBlock.index].length >= this.options.maxBlockTransactions) {
-      for (let t in this._transactionPool[this.workingBlock.index]) {
-        if (await this.workingBlock.add(this._transactionPool[this.workingBlock.index][t]) === false) {
-          return false
-        }
-      }
-
-      // Clear transaction pool and create new block
-      await this._createNewBlock()
+    if (this._transactionPool.length >= this.options.maxBlockTransactions) {
+      await this._processTransactionPool()
     }
 
     return true
@@ -496,12 +566,24 @@ class Chain {
     return true
   }
 
+  async findTransactionByHash (transactionHash) {
+    let transactionInfo = await this._chain.findTransactionByHash(transactionHash)
+
+    return transactionInfo
+  }
+
+  async findTransactionByAuthor (author, startPOS = 0, limit = 500) {
+    let transactionInfo = await this._chain.findTransactionByAuthor(author, startPOS, limit)
+
+    return transactionInfo
+  }
+
   /**
    * Retrieve the length of the chain. How many committed blocks does not include working block
    * @returns {Number} Length of the chain
    */
   get length () {
-    return this.workingBlock.index
+    return this._length
   }
 
   /**
@@ -533,7 +615,7 @@ exports.Chain = Chain
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 20 2018 06:04:31 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun May 27 2018 09:10:23 GMT-0400 (DST)
 </footer>
 
 <script> prettyPrint(); </script>
