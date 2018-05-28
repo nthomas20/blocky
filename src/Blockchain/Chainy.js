@@ -614,7 +614,7 @@ class Chain {
  * @class
  * @memberof module:Blockchain/Peery
  */
-class Peery {
+class Peer {
   /**
    *
    * @param {String} name - The name of the chain to which this node will attach
@@ -651,7 +651,7 @@ class Peery {
       peer.generateKeypair()
 
       peer.on('connect', () => {
-        this._peers.push(peer)
+        this._node.connectPeer(new PeerNode.Host(peerIP, this.port))
       })
 
       peer.connect()
@@ -679,14 +679,26 @@ class Peery {
     this._eventEmitter.on(event, callback)
   }
 
+  /**
+   * Get the current main fork
+   * @returns {String} The Fork ID
+   */
   get primaryForkID () {
     return this._primaryForkID
   }
 
+  /**
+   * Get the name of this blockchain
+   * @returns {String} The Blockchain name
+   */
   get name () {
     return this._name
   }
 
+  /**
+   * Get the port number
+   * @returns {Number} The connection port number
+   */
   get port () {
     return this._port
   }
@@ -695,4 +707,4 @@ class Peery {
 exports.Transaction = Transaction
 exports.Block = Block
 exports.Chain = Chain
-exports.Peery = Peery
+exports.Peer = Peer

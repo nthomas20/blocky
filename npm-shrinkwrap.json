@@ -1369,7 +1369,7 @@
       }
     },
     "peer-node": {
-      "version": "0.0.4",
+      "version": "0.0.6",
       "requires": {
         "keypair": "1.0.1",
         "promise-socket": "3.1.1"

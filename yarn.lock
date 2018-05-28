@@ -1264,9 +1264,9 @@ path-type@^2.0.0:
   dependencies:
     pify "^2.0.0"
 
-peer-node@^0.0.4:
-  version "0.0.4"
-  resolved "https://registry.yarnpkg.com/peer-node/-/peer-node-0.0.4.tgz#0020419961174b0faa9adfff71904eb52de17ed7"
+peer-node@^0.0.6:
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/peer-node/-/peer-node-0.0.6.tgz#c187242642e4d5540461901ef588e795ed37ed91"
   dependencies:
     keypair "^1.0.1"
     promise-socket "^3.1.1"
