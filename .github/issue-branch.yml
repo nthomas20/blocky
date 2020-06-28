@@ -1,0 +1,16 @@
+# https://github.com/marketplace/actions/create-issue-branch#configuration
+mode: auto
+silent: false
+autoCloseIssue: true
+branchName: short
+branches:
+    - label: Type:Enhancement
+      name: main
+    - label: Type:Bug
+      name: main
+    - label: Type:Documentation
+      name: main
+    - label: Type:Question
+      skip: true
+    - label: '*'
+      name: main
